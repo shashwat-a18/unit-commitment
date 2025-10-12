@@ -1220,17 +1220,6 @@ body {
 }
 
 /* Enhanced Multi-Period Optimization Styles */
-.demand-pattern-preview {
-    margin-top: 0.5rem;
-    padding: 0.5rem;
-    background: var(--background);
-    border-radius: var(--border-radius);
-    font-size: 0.875rem;
-}
-
-.pattern-preview {
-    color: var(--text-secondary);
-}
 
 .results-summary {
     margin-bottom: 1.5rem;

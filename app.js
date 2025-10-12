@@ -49,12 +49,6 @@ class UnitCommitmentApp {
         // Multi-period Optimization
         document.getElementById('multiperiod-optimize-btn').addEventListener('click', () => this.runMultiPeriodOptimization());
         document.getElementById('demand-pattern').addEventListener('change', (e) => this.handleDemandPatternChange(e.target.value));
-        document.getElementById('base-load').addEventListener('input', (e) => {
-            const currentPattern = document.getElementById('demand-pattern').value;
-            if (currentPattern !== 'custom') {
-                this.handleDemandPatternChange(currentPattern);
-            }
-        });
         
         // History Management
         document.getElementById('export-history-btn').addEventListener('click', () => this.exportHistory());
@@ -438,87 +432,33 @@ class UnitCommitmentApp {
 
     handleDemandPatternChange(pattern) {
         const customInput = document.getElementById('custom-demand-input');
-        const previewDiv = document.getElementById('demand-pattern-preview');
-        
         if (pattern === 'custom') {
             customInput.style.display = 'block';
-            if (previewDiv) previewDiv.innerHTML = '';
         } else {
             customInput.style.display = 'none';
-            
-            // Show pattern preview
-            if (previewDiv) {
-                const baseLoad = parseFloat(document.getElementById('base-load')?.value) || 100;
-                const sampleDemands = this.generateDemandPattern(pattern, 24, baseLoad);
-                
-                if (sampleDemands) {
-                    const minDemand = Math.min(...sampleDemands);
-                    const maxDemand = Math.max(...sampleDemands);
-                    const avgDemand = sampleDemands.reduce((a, b) => a + b, 0) / sampleDemands.length;
-                    
-                    previewDiv.innerHTML = `
-                        <div class="pattern-preview">
-                            <small>24-hour pattern preview:</small><br>
-                            <strong>Peak:</strong> ${maxDemand.toFixed(1)} MW | 
-                            <strong>Valley:</strong> ${minDemand.toFixed(1)} MW | 
-                            <strong>Average:</strong> ${avgDemand.toFixed(1)} MW
-                        </div>
-                    `;
-                }
-            }
         }
     }
 
     generateDemandPattern(pattern, periods, baseDemand) {
         const demands = [];
-        const baseLoadInput = document.getElementById('base-load');
-        const actualBaseDemand = baseLoadInput ? parseFloat(baseLoadInput.value) || baseDemand : baseDemand;
         
         switch (pattern) {
             case 'constant':
                 for (let i = 0; i < periods; i++) {
-                    demands.push(actualBaseDemand);
+                    demands.push(baseDemand);
                 }
                 break;
                 
             case 'daily':
-                // Typical daily load pattern (percentage of peak load)
+                // Simple daily load pattern (percentage of peak)
                 const dailyPattern = [
-                    0.60, 0.55, 0.50, 0.48, 0.50, 0.60, 0.75, 0.90,  // 0-7 (Night to Morning)
-                    0.95, 0.90, 0.85, 0.88, 0.92, 0.90, 0.85, 0.88,  // 8-15 (Morning to Afternoon)
-                    0.95, 1.00, 0.98, 0.92, 0.85, 0.80, 0.75, 0.65   // 16-23 (Evening to Night)
+                    0.6, 0.55, 0.5, 0.48, 0.5, 0.6, 0.75, 0.9,  // 0-7
+                    0.95, 0.9, 0.85, 0.88, 0.92, 0.9, 0.85, 0.88, // 8-15
+                    0.95, 1.0, 0.98, 0.92, 0.85, 0.8, 0.75, 0.65  // 16-23
                 ];
                 for (let i = 0; i < periods; i++) {
                     const hourIndex = i % 24;
-                    demands.push(actualBaseDemand * dailyPattern[hourIndex]);
-                }
-                break;
-                
-            case 'industrial':
-                // Industrial load pattern - higher during work hours, lower at night/weekends
-                const industrialPattern = [
-                    0.40, 0.35, 0.30, 0.30, 0.35, 0.45, 0.70, 0.85,  // 0-7
-                    0.95, 1.00, 1.00, 0.98, 0.95, 0.92, 0.90, 0.85,  // 8-15
-                    0.80, 0.70, 0.60, 0.55, 0.50, 0.45, 0.42, 0.40   // 16-23
-                ];
-                for (let i = 0; i < periods; i++) {
-                    const hourIndex = i % 24;
-                    const dayIndex = Math.floor(i / 24) % 7;
-                    const weekendFactor = (dayIndex === 0 || dayIndex === 6) ? 0.6 : 1.0; // Weekend reduction
-                    demands.push(actualBaseDemand * industrialPattern[hourIndex] * weekendFactor);
-                }
-                break;
-                
-            case 'residential':
-                // Residential load pattern - peaks in morning and evening
-                const residentialPattern = [
-                    0.45, 0.40, 0.38, 0.35, 0.38, 0.50, 0.75, 0.95,  // 0-7 (Night to Morning)
-                    0.85, 0.70, 0.60, 0.58, 0.62, 0.65, 0.68, 0.75,  // 8-15 (Day)
-                    0.85, 0.95, 1.00, 0.98, 0.92, 0.85, 0.70, 0.55   // 16-23 (Evening peak)
-                ];
-                for (let i = 0; i < periods; i++) {
-                    const hourIndex = i % 24;
-                    demands.push(actualBaseDemand * residentialPattern[hourIndex]);
+                    demands.push(baseDemand * dailyPattern[hourIndex]);
                 }
                 break;
                 
@@ -531,12 +471,6 @@ class UnitCommitmentApp {
                 }
                 for (let i = 0; i < periods; i++) {
                     demands.push(parsed[i % parsed.length]);
-                }
-                break;
-                
-            default:
-                for (let i = 0; i < periods; i++) {
-                    demands.push(actualBaseDemand);
                 }
                 break;
         }
@@ -552,9 +486,9 @@ class UnitCommitmentApp {
 
         const periods = parseInt(document.getElementById('periods-input').value);
         const pattern = document.getElementById('demand-pattern').value;
-        const baseLoad = parseFloat(document.getElementById('base-load')?.value) || 100;
+        const baseDemand = parseFloat(document.getElementById('demand-input').value) || 100;
         
-        const demands = this.generateDemandPattern(pattern, periods, baseLoad);
+        const demands = this.generateDemandPattern(pattern, periods, baseDemand);
         if (!demands) return;
 
         // Validate demands against system capacity
