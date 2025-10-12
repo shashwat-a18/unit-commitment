@@ -1,7 +1,7 @@
-// Esolver - Unit Commitment Optimizer
+// Unit Commitment Optimizer
 // Modern JavaScript application for power system optimization
 
-class EsolverApp {
+class UnitCommitmentApp {
     constructor() {
         this.generators = [];
         this.currentProject = null;
@@ -1501,7 +1501,7 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
             this.currentProject = null;
             this.optimizationResults = null;
             
-            localStorage.removeItem('esolver_current_project');
+            localStorage.removeItem('uc_optimizer_current_project');
             this.updateUI();
             this.showToast('All data cleared', 'success');
         }
@@ -1510,12 +1510,12 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
     // Data Management
     saveProject() {
         if (this.currentProject) {
-            localStorage.setItem('esolver_current_project', JSON.stringify(this.currentProject));
+            localStorage.setItem('uc_optimizer_current_project', JSON.stringify(this.currentProject));
         }
     }
 
     loadSavedProject() {
-        const saved = localStorage.getItem('esolver_current_project');
+        const saved = localStorage.getItem('uc_optimizer_current_project');
         if (saved) {
             try {
                 this.currentProject = JSON.parse(saved);
@@ -1569,11 +1569,11 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
     }
 
     saveHistory() {
-        localStorage.setItem('esolver_history', JSON.stringify(this.history));
+        localStorage.setItem('uc_optimizer_history', JSON.stringify(this.history));
     }
 
     loadHistory() {
-        const saved = localStorage.getItem('esolver_history');
+        const saved = localStorage.getItem('uc_optimizer_history');
         return saved ? JSON.parse(saved) : [];
     }
 
@@ -1593,7 +1593,7 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `esolver_history_${new Date().toISOString().split('T')[0]}.json`;
+        a.download = `uc_optimizer_history_${new Date().toISOString().split('T')[0]}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -2258,7 +2258,7 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
 
 // Initialize the application when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    window.app = new EsolverApp();
+    window.app = new UnitCommitmentApp();
 });
 
 // Add some CSS classes for better styling

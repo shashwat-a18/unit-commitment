@@ -1,4 +1,4 @@
-# Esolver - Unit Commitment Optimizer 
+# Unit Commitment Optimizer 
 
 A modern, interactive web application for solving Unit Commitment (UC) optimization problems in power systems. This tool provides a comprehensive solution for generator dispatch optimization with an intuitive interface that works entirely in your browser.
 
@@ -13,16 +13,15 @@ A modern, interactive web application for solving Unit Commitment (UC) optimizat
 ## 🏗️ Project Structure
 
 ```
-esolver/
-├── index.html           # 🎯 Main application interface (12KB)
-├── app.js              # 🧠 Core logic & animated visualizations (58KB)
-├── styles.css          # 🎨 Modern responsive styling with animations (20KB)
+unit-commitment/
+├── index.html           # 🎯 Main application interface (14KB)
+├── app.js              # 🧠 Core optimization algorithms (95KB)
+├── styles.css          # 🎨 Modern responsive styling with animations (25KB)
 ├── _config.yml         # ⚙️  GitHub Pages configuration
 ├── .gitignore          # 🔒 Git ignore rules
-├── README.md           # 📖 This documentation
-└── legacy/             # 📦 Original Python implementation
-    ├── unit_solution_3.py
-    ├── index4.html
+├── README.md           # 📖 Complete documentation
+├── verify-deployment.sh # 🔧 Deployment verification script
+└── CNAME.example       # 🌐 Custom domain template
     ├── script2.js
     └── style6.css
 ```
@@ -103,9 +102,9 @@ esolver/
 ### **GitHub Pages Deployment (Ready to Deploy!)**
 1. **Fork or Upload** this repository to GitHub
 2. **Go to Settings → Pages** in your repository
-3. **Select source: Deploy from branch `main`** 
+3. **Select source: Deploy from branch `master`** 
 4. **Wait 2-5 minutes** for deployment
-5. **Access at: `https://yourusername.github.io/repository-name`**
+5. **Access at: `https://shashwat-a18.github.io/unit-commitment/`**
 
 **✅ This project is 100% ready for GitHub Pages - no additional setup required!**
 
@@ -179,7 +178,7 @@ G3,15,80,60,2.0,0.012
 - ✅ Easy customization
 - ✅ No dependencies
 
-## 🌟 Why Choose Esolver?
+## 🌟 Why Choose This Optimizer?
 
 ### **⚡ Performance**
 - **Client-side Processing**: No server delays
