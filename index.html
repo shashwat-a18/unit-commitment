@@ -142,24 +142,33 @@
                     <div class="card">
                         <h3><i class="fas fa-clock"></i> Multi-Period Optimization</h3>
                         <div class="form-group">
-                            <label for="periods-input">Number of Periods:</label>
+                            <label for="periods-input">Number of Periods (Hours):</label>
                             <input type="number" id="periods-input" min="1" max="168" value="24" class="form-input">
-                            <small>Typical: 24 hours, 168 hours (1 week)</small>
+                            <small>Typical: 24 hours (1 day), 72 hours (3 days), 168 hours (1 week)</small>
                         </div>
                         <div class="form-group">
-                            <label for="demand-pattern">Demand Pattern:</label>
+                            <label for="demand-pattern">Load Demand Pattern:</label>
                             <select id="demand-pattern" class="form-input">
-                                <option value="constant">Constant Demand</option>
-                                <option value="daily">Daily Load Pattern</option>
-                                <option value="custom">Custom Pattern</option>
+                                <option value="constant">Constant Load</option>
+                                <option value="daily">Typical Daily Load Profile</option>
+                                <option value="industrial">Industrial Load Profile</option>
+                                <option value="residential">Residential Load Profile</option>
+                                <option value="custom">Custom Load Pattern</option>
                             </select>
+                            <div class="demand-pattern-preview" id="demand-pattern-preview"></div>
                         </div>
                         <div id="custom-demand-input" class="form-group" style="display: none;">
-                            <label for="demand-values">Demand Values (MW, comma-separated):</label>
-                            <textarea id="demand-values" class="form-input" rows="3" placeholder="100, 120, 140, 160, 180, 200, 190, 170..."></textarea>
+                            <label for="demand-values">Hourly Demand Values (MW, comma-separated):</label>
+                            <textarea id="demand-values" class="form-input" rows="4" placeholder="100, 105, 110, 120, 140, 160, 180, 200, 210, 195, 170, 150, 130, 115, 110, 105, 120, 140, 170, 190, 185, 165, 140, 120"></textarea>
+                            <small>Enter values for each hour. If fewer values provided, pattern will repeat.</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="base-load">Base Load (MW):</label>
+                            <input type="number" id="base-load" min="10" step="10" value="100" class="form-input">
+                            <small>Base load for pattern generation</small>
                         </div>
                         <button class="btn btn-secondary btn-large" id="multiperiod-optimize-btn" disabled>
-                            <i class="fas fa-history"></i> Optimize Multi-Period
+                            <i class="fas fa-history"></i> Optimize Multi-Period Schedule
                         </button>
                     </div>
                 </div>
@@ -168,7 +177,20 @@
                 <div id="optimization-results" class="results-section"></div>
                 
                 <!-- Multi-Period Results -->
-                <div id="multiperiod-results" class="results-section" style="display: none;"></div>
+                <div id="multiperiod-results" class="results-section" style="display: none;">
+                    <div class="card">
+                        <h3><i class="fas fa-calendar-alt"></i> Generator Schedule</h3>
+                        <div id="schedule-visualization"></div>
+                    </div>
+                    <div class="card">
+                        <h3><i class="fas fa-chart-area"></i> Load vs Generation</h3>
+                        <canvas id="load-generation-chart" width="800" height="400"></canvas>
+                    </div>
+                    <div class="card">
+                        <h3><i class="fas fa-cogs"></i> Generator Status Timeline</h3>
+                        <canvas id="generator-status-chart" width="800" height="300"></canvas>
+                    </div>
+                </div>
                 
                 <!-- Live Optimization Visualization -->
                 <div id="optimization-visualization" class="visualization-section" style="display: none;">

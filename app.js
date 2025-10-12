@@ -49,6 +49,12 @@ class UnitCommitmentApp {
         // Multi-period Optimization
         document.getElementById('multiperiod-optimize-btn').addEventListener('click', () => this.runMultiPeriodOptimization());
         document.getElementById('demand-pattern').addEventListener('change', (e) => this.handleDemandPatternChange(e.target.value));
+        document.getElementById('base-load').addEventListener('input', (e) => {
+            const currentPattern = document.getElementById('demand-pattern').value;
+            if (currentPattern !== 'custom') {
+                this.handleDemandPatternChange(currentPattern);
+            }
+        });
         
         // History Management
         document.getElementById('export-history-btn').addEventListener('click', () => this.exportHistory());
@@ -432,33 +438,87 @@ class UnitCommitmentApp {
 
     handleDemandPatternChange(pattern) {
         const customInput = document.getElementById('custom-demand-input');
+        const previewDiv = document.getElementById('demand-pattern-preview');
+        
         if (pattern === 'custom') {
             customInput.style.display = 'block';
+            if (previewDiv) previewDiv.innerHTML = '';
         } else {
             customInput.style.display = 'none';
+            
+            // Show pattern preview
+            if (previewDiv) {
+                const baseLoad = parseFloat(document.getElementById('base-load')?.value) || 100;
+                const sampleDemands = this.generateDemandPattern(pattern, 24, baseLoad);
+                
+                if (sampleDemands) {
+                    const minDemand = Math.min(...sampleDemands);
+                    const maxDemand = Math.max(...sampleDemands);
+                    const avgDemand = sampleDemands.reduce((a, b) => a + b, 0) / sampleDemands.length;
+                    
+                    previewDiv.innerHTML = `
+                        <div class="pattern-preview">
+                            <small>24-hour pattern preview:</small><br>
+                            <strong>Peak:</strong> ${maxDemand.toFixed(1)} MW | 
+                            <strong>Valley:</strong> ${minDemand.toFixed(1)} MW | 
+                            <strong>Average:</strong> ${avgDemand.toFixed(1)} MW
+                        </div>
+                    `;
+                }
+            }
         }
     }
 
     generateDemandPattern(pattern, periods, baseDemand) {
         const demands = [];
+        const baseLoadInput = document.getElementById('base-load');
+        const actualBaseDemand = baseLoadInput ? parseFloat(baseLoadInput.value) || baseDemand : baseDemand;
         
         switch (pattern) {
             case 'constant':
                 for (let i = 0; i < periods; i++) {
-                    demands.push(baseDemand);
+                    demands.push(actualBaseDemand);
                 }
                 break;
                 
             case 'daily':
-                // Typical daily load pattern (percentage of peak)
+                // Typical daily load pattern (percentage of peak load)
                 const dailyPattern = [
-                    0.6, 0.55, 0.5, 0.48, 0.5, 0.6, 0.75, 0.9,  // 0-7
-                    0.95, 0.9, 0.85, 0.88, 0.92, 0.9, 0.85, 0.88, // 8-15
-                    0.95, 1.0, 0.98, 0.92, 0.85, 0.8, 0.75, 0.65  // 16-23
+                    0.60, 0.55, 0.50, 0.48, 0.50, 0.60, 0.75, 0.90,  // 0-7 (Night to Morning)
+                    0.95, 0.90, 0.85, 0.88, 0.92, 0.90, 0.85, 0.88,  // 8-15 (Morning to Afternoon)
+                    0.95, 1.00, 0.98, 0.92, 0.85, 0.80, 0.75, 0.65   // 16-23 (Evening to Night)
                 ];
                 for (let i = 0; i < periods; i++) {
                     const hourIndex = i % 24;
-                    demands.push(baseDemand * dailyPattern[hourIndex]);
+                    demands.push(actualBaseDemand * dailyPattern[hourIndex]);
+                }
+                break;
+                
+            case 'industrial':
+                // Industrial load pattern - higher during work hours, lower at night/weekends
+                const industrialPattern = [
+                    0.40, 0.35, 0.30, 0.30, 0.35, 0.45, 0.70, 0.85,  // 0-7
+                    0.95, 1.00, 1.00, 0.98, 0.95, 0.92, 0.90, 0.85,  // 8-15
+                    0.80, 0.70, 0.60, 0.55, 0.50, 0.45, 0.42, 0.40   // 16-23
+                ];
+                for (let i = 0; i < periods; i++) {
+                    const hourIndex = i % 24;
+                    const dayIndex = Math.floor(i / 24) % 7;
+                    const weekendFactor = (dayIndex === 0 || dayIndex === 6) ? 0.6 : 1.0; // Weekend reduction
+                    demands.push(actualBaseDemand * industrialPattern[hourIndex] * weekendFactor);
+                }
+                break;
+                
+            case 'residential':
+                // Residential load pattern - peaks in morning and evening
+                const residentialPattern = [
+                    0.45, 0.40, 0.38, 0.35, 0.38, 0.50, 0.75, 0.95,  // 0-7 (Night to Morning)
+                    0.85, 0.70, 0.60, 0.58, 0.62, 0.65, 0.68, 0.75,  // 8-15 (Day)
+                    0.85, 0.95, 1.00, 0.98, 0.92, 0.85, 0.70, 0.55   // 16-23 (Evening peak)
+                ];
+                for (let i = 0; i < periods; i++) {
+                    const hourIndex = i % 24;
+                    demands.push(actualBaseDemand * residentialPattern[hourIndex]);
                 }
                 break;
                 
@@ -471,6 +531,12 @@ class UnitCommitmentApp {
                 }
                 for (let i = 0; i < periods; i++) {
                     demands.push(parsed[i % parsed.length]);
+                }
+                break;
+                
+            default:
+                for (let i = 0; i < periods; i++) {
+                    demands.push(actualBaseDemand);
                 }
                 break;
         }
@@ -486,12 +552,23 @@ class UnitCommitmentApp {
 
         const periods = parseInt(document.getElementById('periods-input').value);
         const pattern = document.getElementById('demand-pattern').value;
-        const baseDemand = parseFloat(document.getElementById('demand-input').value) || 100;
+        const baseLoad = parseFloat(document.getElementById('base-load')?.value) || 100;
         
-        const demands = this.generateDemandPattern(pattern, periods, baseDemand);
+        const demands = this.generateDemandPattern(pattern, periods, baseLoad);
         if (!demands) return;
 
-        this.showLoading(true, 'Running multi-period optimization...');
+        // Validate demands against system capacity
+        const minSystemLoad = Math.min(...this.generators.map(g => g.pgmin));
+        const maxSystemLoad = this.generators.reduce((sum, g) => sum + g.pgmax, 0);
+        const maxDemand = Math.max(...demands);
+        const minDemand = Math.min(...demands);
+
+        if (maxDemand > maxSystemLoad) {
+            this.showToast(`Peak demand (${maxDemand.toFixed(1)} MW) exceeds system capacity (${maxSystemLoad.toFixed(1)} MW)`, 'error');
+            return;
+        }
+
+        this.showLoading(true, `Optimizing ${periods}-hour schedule with ${pattern} load pattern...`);
         
         setTimeout(() => {
             try {
@@ -499,20 +576,21 @@ class UnitCommitmentApp {
                 
                 if (result && result.success) {
                     this.displayMultiPeriodResults(result);
-                    this.createMultiPeriodCharts(result);
-                    this.showToast(`Multi-period optimization completed! Average efficiency: ${result.averageEfficiency} MW/₹`, 'success');
+                    this.createMultiPeriodCharts(result, demands);
+                    document.getElementById('multiperiod-results').style.display = 'block';
+                    this.showToast(`Multi-period optimization completed! Total cost: ₹${result.totalSystemCost.toFixed(2)}`, 'success');
                 } else {
-                    this.showToast('Multi-period optimization failed. Check constraints and demands.', 'error');
+                    this.showToast('Multi-period optimization failed. Check generator constraints and load demands.', 'error');
                 }
             } catch (error) {
                 console.error('Multi-period optimization error:', error);
-                this.showToast('Optimization failed. Please check your data.', 'error');
+                this.showToast('Optimization failed. Please check your generator data and load pattern.', 'error');
             }
             this.showLoading(false);
-        }, 200);
+        }, 300);
     }
 
-    optimizeUnitCommitment(generators, demand, timeHorizon = 1) {
+    optimizeUnitCommitment(generators, demand, timeHorizon = 1, prevSchedule = []) {
         const memo = new Map();
         
         const costFunction = (gen, power, isStartup = false) => {
@@ -524,20 +602,70 @@ class UnitCommitmentApp {
             return operatingCost + startupCost;
         };
 
+        // Quick check: Find the best single generator solution first
+        let bestSingleGen = null;
+        let bestSingleCost = Infinity;
+        
+        for (const gen of generators) {
+            if (gen.pgmin <= demand && demand <= gen.pgmax) {
+                const cost = costFunction(gen, demand, true);
+                if (cost < bestSingleCost) {
+                    bestSingleCost = cost;
+                    bestSingleGen = {
+                        success: true,
+                        demand: demand,
+                        schedule: [{
+                            generator: gen.tag,
+                            power: demand,
+                            cost: cost,
+                            rampConstraintSatisfied: true
+                        }],
+                        totalCost: cost,
+                        totalGeneration: demand,
+                        activeGenerators: 1,
+                        efficiency: (demand / cost).toFixed(4)
+                    };
+                }
+            }
+        }
+        
+        // If we found a single generator solution, prefer it (simpler and often optimal)
+        if (bestSingleGen) {
+            return bestSingleGen;
+        }
+
         // Check if generator can ramp from previous power to current power
         const canRamp = (gen, prevPower, currentPower) => {
-            // For single-period optimization or first period, allow any valid startup
-            if (prevPower === 0 && timeHorizon === 1) {
+            // For first period or when previously off, only check startup constraints
+            if (prevPower === 0) {
+                // Starting up: check if within generator limits
                 return currentPower >= gen.pgmin && currentPower <= gen.pgmax;
             }
             
-            const powerChange = Math.abs(currentPower - prevPower);
-            const maxRamp = Math.min(gen.rampup, gen.rampdown) * timeHorizon;
-            return powerChange <= maxRamp;
+            // For shutdown (going to 0), no ramp limit typically applies
+            if (currentPower === 0) {
+                return true;
+            }
+            
+            // For power changes between non-zero values, enforce ramp constraints
+            const powerChange = currentPower - prevPower;
+            
+            if (powerChange > 0) {
+                // Ramping up: check ramp up limit
+                return powerChange <= gen.rampup * timeHorizon;
+            } else if (powerChange < 0) {
+                // Ramping down: check ramp down limit
+                return Math.abs(powerChange) <= gen.rampdown * timeHorizon;
+            }
+            
+            // No change in power
+            return true;
         };
 
         const recursiveDispatch = (gens, d, n = gens.length, prevSchedule = []) => {
-            const key = `${n}-${d}-${prevSchedule.map(s => s.power).join(',')}`;
+            // Round demand to avoid floating point precision issues
+            const roundedDemand = Math.round(d * 100) / 100;
+            const key = `${n}-${roundedDemand}-${prevSchedule.map(s => Math.round(s.power * 100) / 100).join(',')}`;
             if (memo.has(key)) {
                 return memo.get(key);
             }
@@ -552,7 +680,7 @@ class UnitCommitmentApp {
                 let bestSingleCost = Infinity;
 
                 // First try not using this generator (power = 0)
-                if (d <= 0 && canRamp(gen, prevPower, 0)) {
+                if (roundedDemand <= 0 && canRamp(gen, prevPower, 0)) {
                     bestSingleResult = {
                         schedule: [],
                         totalCost: 0
@@ -562,7 +690,7 @@ class UnitCommitmentApp {
 
                 // Then try using the generator at valid power levels
                 const minPower = Math.max(gen.pgmin, Math.ceil(gen.pgmin * 2) / 2); // Round up to nearest 0.5
-                const maxPower = Math.min(d, gen.pgmax);
+                const maxPower = Math.min(roundedDemand, gen.pgmax);
                 
                 if (maxPower >= minPower) {
                     // Create array of power levels to test, including exact demand
@@ -571,8 +699,8 @@ class UnitCommitmentApp {
                         powerLevels.push(power);
                     }
                     // Add exact demand if it's within range and not already included
-                    if (d >= minPower && d <= maxPower && !powerLevels.includes(d)) {
-                        powerLevels.push(d);
+                    if (roundedDemand >= minPower && roundedDemand <= maxPower && !powerLevels.includes(roundedDemand)) {
+                        powerLevels.push(roundedDemand);
                         powerLevels.sort((a, b) => a - b);
                     }
                     
@@ -608,7 +736,7 @@ class UnitCommitmentApp {
 
             // Try not using this generator (power = 0)
             if (canRamp(gen, prevPower, 0)) {
-                const subResult = recursiveDispatch(gens, d, n - 1, prevSchedule);
+                const subResult = recursiveDispatch(gens, roundedDemand, n - 1, prevSchedule);
                 if (subResult !== null && subResult.totalCost < bestCost) {
                     bestCost = subResult.totalCost;
                     bestSchedule = subResult.schedule;
@@ -617,7 +745,7 @@ class UnitCommitmentApp {
 
             // Try using this generator at valid power levels
             const minPower = Math.max(gen.pgmin, Math.ceil(gen.pgmin * 2) / 2); // Round up to nearest 0.5
-            const maxPower = Math.min(d, gen.pgmax);
+            const maxPower = Math.min(roundedDemand, gen.pgmax);
             
             if (maxPower >= minPower) {
                 // Create array of power levels to test, including values that help meet exact demand
@@ -626,14 +754,14 @@ class UnitCommitmentApp {
                     powerLevels.push(power);
                 }
                 // Add power level that would exactly meet remaining demand if feasible
-                if (d >= minPower && d <= maxPower && !powerLevels.includes(d)) {
-                    powerLevels.push(d);
+                if (roundedDemand >= minPower && roundedDemand <= maxPower && !powerLevels.includes(roundedDemand)) {
+                    powerLevels.push(roundedDemand);
                     powerLevels.sort((a, b) => a - b);
                 }
                 
                 for (const power of powerLevels) {
                     if (canRamp(gen, prevPower, power)) {
-                        const remainingDemand = d - power;
+                        const remainingDemand = roundedDemand - power;
                         const subResult = recursiveDispatch(gens, remainingDemand, n - 1, prevSchedule);
                         
                         if (subResult !== null) {
@@ -661,7 +789,8 @@ class UnitCommitmentApp {
         };
 
         // Try with all generators (they'll be filtered internally based on demand)
-        const result = recursiveDispatch(generators, demand);
+        const roundedDemand = Math.round(demand * 100) / 100;
+        const result = recursiveDispatch(generators, roundedDemand, generators.length, prevSchedule);
         let bestResult = result;
 
         if (bestResult) {
@@ -752,7 +881,9 @@ class UnitCommitmentApp {
                 };
             });
 
-            const periodResult = this.optimizeUnitCommitment(feasibleGenerators, demand, 1);
+            // Get previous schedule for ramp constraint enforcement
+            const prevSchedule = period > 0 ? schedules[period - 1].schedule : [];
+            const periodResult = this.optimizeUnitCommitment(feasibleGenerators, demand, 1, prevSchedule);
             
             if (periodResult && periodResult.success) {
                 schedules.push({
@@ -1050,84 +1181,67 @@ class UnitCommitmentApp {
 
     displayMultiPeriodResults(result) {
         const container = document.getElementById('multiperiod-results');
-        container.style.display = 'block';
         
         if (result.success) {
-            const scheduleTable = result.schedules.map((period, index) => {
-                const status = period.infeasible ? 
-                    '<span class="status-error">Infeasible</span>' : 
-                    '<span class="status-success">Optimal</span>';
-                
-                const generatorList = period.schedule.length > 0 ? 
-                    period.schedule.map(gen => `${gen.generator}: ${gen.power.toFixed(1)}MW`).join(', ') :
-                    'No generators dispatched';
-                    
-                return `
-                    <tr style="animation-delay: ${index * 0.05}s" class="animate-slideInLeft">
-                        <td>Period ${period.period}</td>
-                        <td>${period.demand.toFixed(1)} MW</td>
-                        <td>${status}</td>
-                        <td>₹${period.cost.toFixed(2)}</td>
-                        <td>${period.efficiency || 0} MW/₹</td>
-                        <td class="generator-list">${generatorList}</td>
-                    </tr>
-                `;
-            }).join('');
-
-            container.innerHTML = `
-                <div class="results-grid">
-                    <div class="result-card success">
-                        <div class="result-header">
-                            <i class="fas fa-history"></i>
-                            <h3>Multi-Period Optimization Results</h3>
+            // Generate schedule visualization table
+            const scheduleVisualization = this.generateScheduleVisualization(result);
+            
+            // Summary statistics
+            const totalPower = result.schedules.reduce((sum, p) => sum + p.demand, 0);
+            const avgCost = result.totalSystemCost / result.schedules.length;
+            const feasiblePeriods = result.schedules.filter(s => !s.infeasible).length;
+            
+            document.getElementById('schedule-visualization').innerHTML = `
+                <div class="results-summary">
+                    <div class="summary-stats">
+                        <div class="stat-item">
+                            <h4>₹${result.totalSystemCost.toFixed(2)}</h4>
+                            <p>Total System Cost</p>
                         </div>
-                        <div class="result-stats">
-                            <p><strong>Total System Cost:</strong> ₹${result.totalSystemCost.toFixed(2)}</p>
-                            <p><strong>Periods:</strong> ${result.schedules.length}</p>
-                            <p><strong>Average Efficiency:</strong> ${result.averageEfficiency} MW/₹</p>
-                            <p><strong>Feasible Periods:</strong> ${result.schedules.filter(s => !s.infeasible).length}</p>
+                        <div class="stat-item">
+                            <h4>${result.schedules.length}h</h4>
+                            <p>Planning Horizon</p>
+                        </div>
+                        <div class="stat-item">
+                            <h4>₹${avgCost.toFixed(2)}/h</h4>
+                            <p>Average Hourly Cost</p>
+                        </div>
+                        <div class="stat-item">
+                            <h4>${((feasiblePeriods / result.schedules.length) * 100).toFixed(1)}%</h4>
+                            <p>Feasibility Rate</p>
                         </div>
                     </div>
                 </div>
                 
-                <div class="card mt-2">
-                    <h3><i class="fas fa-table"></i> Period-by-Period Schedule</h3>
-                    <div class="table-container">
-                        <table class="table">
+                <div class="schedule-table-container">
+                    <h4><i class="fas fa-table"></i> Hourly Dispatch Schedule</h4>
+                    <div class="table-responsive">
+                        <table class="schedule-table">
                             <thead>
                                 <tr>
-                                    <th>Period</th>
-                                    <th>Demand</th>
+                                    <th>Hour</th>
+                                    <th>Load (MW)</th>
                                     <th>Status</th>
-                                    <th>Cost</th>
-                                    <th>Efficiency</th>
-                                    <th>Generator Schedule</th>
+                                    ${this.generators.map(gen => `<th>${gen.tag}</th>`).join('')}
+                                    <th>Total Gen</th>
+                                    <th>Cost (₹)</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${scheduleTable}
+                                ${scheduleVisualization}
                             </tbody>
                         </table>
                     </div>
                 </div>
                 
-                <div class="card mt-2">
-                    <h3><i class="fas fa-cog"></i> Generator Status Summary</h3>
-                    <div class="generator-states">
-                        ${Object.entries(result.generatorStates).map(([tag, state]) => `
-                            <div class="generator-state-item">
-                                <span class="generator-tag">${tag}</span>
-                                <span class="state-info">
-                                    ${state.isOn ? 
-                                        `<i class="fas fa-power-off text-success"></i> ON (${state.timeOn}h)` : 
-                                        `<i class="fas fa-power-off text-muted"></i> OFF (${state.timeOff}h)`
-                                    }
-                                </span>
-                            </div>
-                        `).join('')}
-                    </div>
+                <div class="generator-timeline">
+                    <h4><i class="fas fa-timeline"></i> Generator On/Off Schedule</h4>
+                    ${this.createGeneratorTimeline(result)}
                 </div>
             `;
+            
+            container.style.display = 'block';
+            this.showToast(`Schedule generated for ${result.schedules.length} periods`, 'success');
         } else {
             container.innerHTML = `
                 <div class="result-card error">
@@ -1138,14 +1252,81 @@ class UnitCommitmentApp {
                     <p>No feasible solution found for the given constraints and demand pattern.</p>
                 </div>
             `;
+            container.style.display = 'block';
         }
     }
 
-    createMultiPeriodCharts(result) {
-        // Create charts for multi-period results visualization
-        this.createTimeSeriesChart(result);
-        this.createCostAnalysisChart(result);
-        this.createGeneratorUtilizationChart(result);
+    generateScheduleVisualization(result) {
+        return result.schedules.map((period, index) => {
+            const status = period.infeasible ? 
+                '<span class="status-error"><i class="fas fa-times"></i> Infeasible</span>' : 
+                '<span class="status-success"><i class="fas fa-check"></i> Optimal</span>';
+            
+            const totalGeneration = period.schedule.reduce((sum, gen) => sum + gen.power, 0);
+            
+            const generatorCells = this.generators.map(gen => {
+                const genSchedule = period.schedule.find(s => s.generator === gen.tag);
+                if (genSchedule && genSchedule.power > 0) {
+                    return `<td class="gen-on">${genSchedule.power.toFixed(1)} MW</td>`;
+                } else {
+                    return `<td class="gen-off">OFF</td>`;
+                }
+            }).join('');
+            
+            return `
+                <tr style="animation-delay: ${index * 0.05}s" class="schedule-row">
+                    <td><strong>H${period.period}</strong></td>
+                    <td>${period.demand.toFixed(1)} MW</td>
+                    <td>${status}</td>
+                    ${generatorCells}
+                    <td><strong>${totalGeneration.toFixed(1)} MW</strong></td>
+                    <td>₹${period.cost.toFixed(2)}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    createGeneratorTimeline(result) {
+        const timeline = this.generators.map(gen => {
+            const timelineBar = result.schedules.map((period, hour) => {
+                const genSchedule = period.schedule.find(s => s.generator === gen.tag);
+                const isOn = genSchedule && genSchedule.power > 0;
+                const power = isOn ? genSchedule.power : 0;
+                
+                return `
+                    <div class="timeline-hour ${isOn ? 'gen-on' : 'gen-off'}" 
+                         title="Hour ${hour + 1}: ${isOn ? power.toFixed(1) + ' MW' : 'OFF'}"
+                         data-hour="${hour + 1}" data-power="${power.toFixed(1)}">
+                    </div>
+                `;
+            }).join('');
+            
+            const totalHours = result.schedules.length;
+            const onHours = result.schedules.filter(p => {
+                const genSchedule = p.schedule.find(s => s.generator === gen.tag);
+                return genSchedule && genSchedule.power > 0;
+            }).length;
+            
+            return `
+                <div class="generator-timeline-row">
+                    <div class="timeline-label">
+                        <strong>${gen.tag}</strong>
+                        <small>${onHours}/${totalHours}h ON</small>
+                    </div>
+                    <div class="timeline-bar">
+                        ${timelineBar}
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        return timeline;
+    }
+
+    createMultiPeriodCharts(result, demands) {
+        // Create enhanced charts for multi-period results visualization
+        this.createLoadGenerationChart(result, demands);
+        this.createGeneratorStatusChart(result);
     }
 
     createTimeSeriesChart(result) {
@@ -1217,14 +1398,178 @@ class UnitCommitmentApp {
         });
     }
 
-    createCostAnalysisChart(result) {
-        // Additional chart creation can be added here
-        console.log('Cost analysis chart created for', result.schedules.length, 'periods');
+    createLoadGenerationChart(result, demands) {
+        const ctx = document.getElementById('load-generation-chart');
+        if (!ctx) return;
+
+        // Destroy existing chart if it exists
+        if (this.charts.loadGeneration) {
+            this.charts.loadGeneration.destroy();
+        }
+
+        const hours = result.schedules.map((_, i) => i + 1);
+        const loadData = result.schedules.map(p => p.demand);
+        
+        // Calculate generation by each generator for each hour
+        const generatorDatasets = this.generators.map((gen, index) => {
+            const colors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#34495e', '#e67e22', '#95a5a6', '#f1c40f'];
+            const color = colors[index % colors.length];
+            
+            const genData = result.schedules.map(period => {
+                const genSchedule = period.schedule.find(s => s.generator === gen.tag);
+                return genSchedule ? genSchedule.power : 0;
+            });
+
+            return {
+                label: gen.tag,
+                data: genData,
+                backgroundColor: color + '80',
+                borderColor: color,
+                borderWidth: 2,
+                fill: false
+            };
+        });
+
+        this.charts.loadGeneration = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: hours,
+                datasets: [
+                    {
+                        label: 'Load Demand',
+                        data: loadData,
+                        borderColor: '#2c3e50',
+                        backgroundColor: 'rgba(44, 62, 80, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4
+                    },
+                    ...generatorDatasets
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Hourly Load Demand vs Generator Output'
+                    },
+                    legend: {
+                        position: 'bottom'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Power (MW)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Hour'
+                        }
+                    }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                }
+            }
+        });
     }
 
-    createGeneratorUtilizationChart(result) {
-        // Additional chart creation can be added here
-        console.log('Generator utilization chart created');
+    createGeneratorStatusChart(result) {
+        const ctx = document.getElementById('generator-status-chart');
+        if (!ctx) return;
+
+        // Destroy existing chart if it exists
+        if (this.charts.generatorStatus) {
+            this.charts.generatorStatus.destroy();
+        }
+
+        const hours = result.schedules.map((_, i) => i + 1);
+        
+        // Create stacked bar chart showing generator status (on/off/power level)
+        const generatorDatasets = this.generators.map((gen, index) => {
+            const colors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#34495e', '#e67e22', '#95a5a6', '#f1c40f'];
+            const color = colors[index % colors.length];
+            
+            const statusData = result.schedules.map(period => {
+                const genSchedule = period.schedule.find(s => s.generator === gen.tag);
+                return genSchedule && genSchedule.power > 0 ? 1 : 0; // 1 for ON, 0 for OFF
+            });
+
+            return {
+                label: gen.tag,
+                data: statusData,
+                backgroundColor: color,
+                borderColor: color,
+                borderWidth: 1,
+                categoryPercentage: 0.8,
+                barPercentage: 0.9
+            };
+        });
+
+        this.charts.generatorStatus = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: hours,
+                datasets: generatorDatasets
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Generator On/Off Status Timeline'
+                    },
+                    legend: {
+                        position: 'bottom'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const generatorName = context.dataset.label;
+                                const hour = context.label;
+                                const isOn = context.parsed.y === 1;
+                                const period = result.schedules[context.dataIndex];
+                                const genSchedule = period.schedule.find(s => s.generator === generatorName);
+                                const power = genSchedule ? genSchedule.power : 0;
+                                
+                                return `${generatorName}: ${isOn ? `ON (${power.toFixed(1)} MW)` : 'OFF'}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: this.generators.length,
+                        ticks: {
+                            stepSize: 1,
+                            callback: function(value) {
+                                return value === 0 ? 'OFF' : (value === 1 ? 'ON' : '');
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Generator Status'
+                        },
+                        stacked: true
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Hour'
+                        },
+                        stacked: true
+                    }
+                }
+            }
+        });
     }
 
     updateHistoryTab() {

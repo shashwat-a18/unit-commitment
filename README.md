@@ -14,16 +14,14 @@ A modern, interactive web application for solving Unit Commitment (UC) optimizat
 
 ```
 unit-commitment/
-├── index.html           # 🎯 Main application interface (14KB)
-├── app.js              # 🧠 Core optimization algorithms (95KB)
-├── styles.css          # 🎨 Modern responsive styling with animations (25KB)
+├── index.html           # 🎯 Main application interface with enhanced UI
+├── app.js              # 🧠 Core optimization algorithms with multi-period support
+├── styles.css          # 🎨 Modern responsive styling with timeline visualizations
 ├── _config.yml         # ⚙️  GitHub Pages configuration
 ├── .gitignore          # 🔒 Git ignore rules
 ├── README.md           # 📖 Complete documentation
 ├── verify-deployment.sh # 🔧 Deployment verification script
 └── CNAME.example       # 🌐 Custom domain template
-    ├── script2.js
-    └── style6.css
 ```
 
 ## ✨ Key Features
@@ -38,15 +36,19 @@ unit-commitment/
 ### 🔄 **Unit Commitment Optimization** 
 - **Dynamic Programming Algorithm**: Efficient recursive optimization
 - **Multiple Generator Support**: Handle up to 10 generators simultaneously
-- **Constraint Handling**: Automatic feasibility checking
+- **Multi-Period Planning**: Optimize generator schedules across 1-168 hours
+- **Constraint Handling**: Automatic feasibility checking with min up/down times
+- **Load Pattern Support**: Constant, daily, industrial, and residential patterns
 - **Real-time Results**: Instant optimization with visual feedback
-- **Cost Analysis**: Detailed breakdown of generation costs
+- **Cost Analysis**: Detailed breakdown of generation costs across time periods
 
 ### 📊 **Results & Analysis**
-- **Optimal Dispatch Schedule**: Generator-wise power allocation
+- **Optimal Dispatch Schedule**: Generator-wise power allocation across time periods
+- **Generator Timeline**: Visual on/off schedule for multi-hour planning
 - **Cost Breakdown**: Fixed, variable, and quadratic cost components
-- **Performance Metrics**: Efficiency and utilization analysis
-- **Visual Tables**: Clean, organized result presentation
+- **Performance Metrics**: Efficiency, utilization, and feasibility analysis
+- **Interactive Charts**: Load vs generation, generator status timelines
+- **Visual Tables**: Clean, organized result presentation with status indicators
 - **Export Capabilities**: Save results for further analysis
 
 ### 💾 **Data Management**

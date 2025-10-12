@@ -1218,3 +1218,253 @@ body {
     font-style: italic;
     color: var(--text-secondary);
 }
+
+/* Enhanced Multi-Period Optimization Styles */
+.demand-pattern-preview {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background: var(--background);
+    border-radius: var(--border-radius);
+    font-size: 0.875rem;
+}
+
+.pattern-preview {
+    color: var(--text-secondary);
+}
+
+.results-summary {
+    margin-bottom: 1.5rem;
+}
+
+.summary-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 1rem;
+    background: var(--surface);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border);
+}
+
+.stat-item h4 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 0.25rem;
+}
+
+.stat-item p {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+/* Schedule Table Styles */
+.schedule-table-container {
+    margin: 1.5rem 0;
+}
+
+.table-responsive {
+    overflow-x: auto;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border);
+}
+
+.schedule-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+}
+
+.schedule-table th {
+    background: var(--background);
+    padding: 0.75rem;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.schedule-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+.schedule-row:hover {
+    background: var(--background);
+}
+
+.gen-on {
+    background: rgba(34, 197, 94, 0.1);
+    color: var(--success-color);
+    font-weight: 600;
+    text-align: center;
+}
+
+.gen-off {
+    background: rgba(148, 163, 184, 0.1);
+    color: var(--text-muted);
+    text-align: center;
+    font-style: italic;
+}
+
+.status-success {
+    color: var(--success-color);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.status-error {
+    color: var(--danger-color);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* Generator Timeline Styles */
+.generator-timeline {
+    margin-top: 2rem;
+    padding: 1rem;
+    background: var(--surface);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border);
+}
+
+.generator-timeline h4 {
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.generator-timeline-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem;
+    border-radius: var(--border-radius);
+    background: var(--background);
+}
+
+.timeline-label {
+    flex: 0 0 120px;
+    padding-right: 1rem;
+}
+
+.timeline-label strong {
+    display: block;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.timeline-label small {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.timeline-bar {
+    flex: 1;
+    display: flex;
+    gap: 1px;
+    height: 24px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--border);
+}
+
+.timeline-hour {
+    flex: 1;
+    min-width: 8px;
+    cursor: pointer;
+    transition: var(--transition);
+    position: relative;
+}
+
+.timeline-hour.gen-on {
+    background: var(--success-color);
+}
+
+.timeline-hour.gen-off {
+    background: var(--text-muted);
+    opacity: 0.3;
+}
+
+.timeline-hour:hover {
+    transform: scaleY(1.2);
+    z-index: 10;
+}
+
+.timeline-hour:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text-primary);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    z-index: 100;
+    margin-bottom: 4px;
+}
+
+/* Animation Classes */
+.schedule-row {
+    opacity: 0;
+    animation: slideInUp 0.3s ease forwards;
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive Design for Timeline */
+@media (max-width: 768px) {
+    .generator-timeline-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+    
+    .timeline-label {
+        flex: none;
+        padding-right: 0;
+    }
+    
+    .timeline-bar {
+        height: 20px;
+    }
+    
+    .summary-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .schedule-table {
+        font-size: 0.875rem;
+    }
+    
+    .schedule-table th,
+    .schedule-table td {
+        padding: 0.5rem;
+    }
+}
