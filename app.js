@@ -526,6 +526,11 @@ class UnitCommitmentApp {
 
         // Check if generator can ramp from previous power to current power
         const canRamp = (gen, prevPower, currentPower) => {
+            // For single-period optimization or first period, allow any valid startup
+            if (prevPower === 0 && timeHorizon === 1) {
+                return currentPower >= gen.pgmin && currentPower <= gen.pgmax;
+            }
+            
             const powerChange = Math.abs(currentPower - prevPower);
             const maxRamp = Math.min(gen.rampup, gen.rampdown) * timeHorizon;
             return powerChange <= maxRamp;
@@ -560,7 +565,18 @@ class UnitCommitmentApp {
                 const maxPower = Math.min(d, gen.pgmax);
                 
                 if (maxPower >= minPower) {
+                    // Create array of power levels to test, including exact demand
+                    const powerLevels = [];
                     for (let power = minPower; power <= maxPower; power += 0.5) {
+                        powerLevels.push(power);
+                    }
+                    // Add exact demand if it's within range and not already included
+                    if (d >= minPower && d <= maxPower && !powerLevels.includes(d)) {
+                        powerLevels.push(d);
+                        powerLevels.sort((a, b) => a - b);
+                    }
+                    
+                    for (const power of powerLevels) {
                         if (canRamp(gen, prevPower, power)) {
                             const isStartup = prevPower === 0 && power > 0;
                             const cost = costFunction(gen, power, isStartup);
@@ -604,7 +620,18 @@ class UnitCommitmentApp {
             const maxPower = Math.min(d, gen.pgmax);
             
             if (maxPower >= minPower) {
+                // Create array of power levels to test, including values that help meet exact demand
+                const powerLevels = [];
                 for (let power = minPower; power <= maxPower; power += 0.5) {
+                    powerLevels.push(power);
+                }
+                // Add power level that would exactly meet remaining demand if feasible
+                if (d >= minPower && d <= maxPower && !powerLevels.includes(d)) {
+                    powerLevels.push(d);
+                    powerLevels.sort((a, b) => a - b);
+                }
+                
+                for (const power of powerLevels) {
                     if (canRamp(gen, prevPower, power)) {
                         const remainingDemand = d - power;
                         const subResult = recursiveDispatch(gens, remainingDemand, n - 1, prevSchedule);
