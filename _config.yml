@@ -1,0 +1,20 @@
+# GitHub Pages Configuration for Unit Commitment Optimizer
+
+# Site settings
+title: "Unit Commitment Optimizer"
+description: "Modern web application for power system optimization with advanced constraints and animated visualizations"
+baseurl: "/unit-commitment"
+url: "https://shashwat-a18.github.io"
+
+# Exclude files from processing  
+exclude:
+  - legacy/
+  - "*.md"
+  - .gitignore
+  - node_modules/
+  - vendor/
+  - .sass-cache/
+  - .jekyll-cache/
+  - gemfiles/
+  - Gemfile
+  - Gemfile.lock
