@@ -257,6 +257,10 @@ class UnitCommitmentApp {
         const numGenerators = parseInt(document.getElementById('num-generators').value);
         const questionNo = parseInt(document.getElementById('question-number').value);
         const generators = [];
+        
+        // For collecting all validation errors
+        const allErrors = [];
+        let hasErrors = false;
 
         // Collect and validate generator data
         for (let i = 1; i <= numGenerators; i++) {
@@ -324,27 +328,28 @@ class UnitCommitmentApp {
                 this.highlightFieldError(`gen_${i}_mindowntime`);
             }
             
+            // Additional logical validation
+            if (!isNaN(pgmin) && !isNaN(pgmax) && pgmin >= pgmax) {
+                errors.push('Pgmin must be less than Pgmax');
+            }
+            
+            // Collect errors for this generator
             if (errors.length > 0) {
-                this.showValidationErrors(`Generator ${i}`, errors);
-                return;
+                allErrors.push({ generator: `Generator ${i}`, errors: errors });
+                hasErrors = true;
+            } else {
+                // Only add to generators array if no errors
+                generators.push({ tag, pgmin, pgmax, ai, bi, di, rampup, rampdown, minuptime, mindowntime });
             }
+        }
 
-            if (pgmin >= pgmax) {
-                this.showToast(`Generator ${i}: Pgmin must be less than Pgmax`, 'error');
-                return;
-            }
-
-            if (rampup <= 0 || rampdown <= 0) {
-                this.showToast(`Generator ${i}: Ramp rates must be positive`, 'error');
-                return;
-            }
-
-            if (minuptime < 1 || mindowntime < 1) {
-                this.showToast(`Generator ${i}: Minimum times must be at least 1 hour`, 'error');
-                return;
-            }
-
-            generators.push({ tag, pgmin, pgmax, ai, bi, di, rampup, rampdown, minuptime, mindowntime });
+        // Display all collected errors at once
+        if (hasErrors) {
+            const errorMessages = allErrors.map(item => 
+                `<strong>${item.generator}:</strong><ul>${item.errors.map(e => `<li>${e}</li>`).join('')}</ul>`
+            ).join('');
+            this.showValidationErrors('Validation Errors', [errorMessages]);
+            return;
         }
 
         // Calculate FLAC and sort
@@ -410,7 +415,7 @@ class UnitCommitmentApp {
                 this.showLoading(false);
                 
                 if (result.success) {
-                    this.showToast(`Optimization completed! Total cost: ₹${result.totalCost.toFixed(2)}, Efficiency: ${result.efficiency} MW/₹`, 'success');
+                    this.showToast(`Optimization completed! Total cost: ₹${result.totalCost.toFixed(2)}, Cost per MW: ₹${result.efficiency}/MW`, 'success');
                     this.createOptimizationCharts(result);
                     
                     // Smooth transition to results with delay for user to see the success message
@@ -529,10 +534,12 @@ class UnitCommitmentApp {
         
         const costFunction = (gen, power, isStartup = false) => {
             if (power === 0) return 0;
-            // Base operating cost: ai (fixed) + bi * power (variable) + di * power^2 (quadratic)
+            // Operating cost per period: ai (fixed when running) + bi * power + di * power^2
+            // Note: ai is the fixed cost per period when the unit is committed
             const operatingCost = gen.ai + gen.bi * power + gen.di * power * power;
-            // Add startup cost if generator is starting up
-            const startupCost = isStartup ? (gen.startupCost || gen.ai * 0.1) : 0;
+            // Startup cost: one-time cost when transitioning from off to on
+            // Default to 50% of fixed cost if not specified (more realistic than 10%)
+            const startupCost = isStartup ? (gen.startupCost || gen.ai * 0.5) : 0;
             return operatingCost + startupCost;
         };
 
@@ -557,28 +564,34 @@ class UnitCommitmentApp {
                         totalCost: cost,
                         totalGeneration: demand,
                         activeGenerators: 1,
-                        efficiency: (demand / cost).toFixed(4)
+                        efficiency: (cost / demand).toFixed(4)  // FIXED: cost per MW, lower is better
                     };
                 }
             }
         }
         
-        // If we found a single generator solution, prefer it (simpler and often optimal)
-        if (bestSingleGen) {
-            return bestSingleGen;
-        }
+        // Note: We do NOT prefer single generator solutions as they are rarely optimal.
+        // The recursive dispatch algorithm will find the most economical combination.
 
         // Check if generator can ramp from previous power to current power
         const canRamp = (gen, prevPower, currentPower) => {
-            // For first period or when previously off, only check startup constraints
+            // For first period or when previously off, check startup ramp constraints
             if (prevPower === 0) {
-                // Starting up: check if within generator limits
-                return currentPower >= gen.pgmin && currentPower <= gen.pgmax;
+                if (currentPower === 0) {
+                    return true; // Staying off is always valid
+                }
+                // Starting up: must be within generator limits and respect startup ramp
+                // Some systems have startup ramp limits different from normal operation
+                const startupRampLimit = gen.startupRamp || gen.rampup; // Use startupRamp if available
+                return currentPower >= gen.pgmin && 
+                       currentPower <= gen.pgmax && 
+                       currentPower <= startupRampLimit * timeHorizon;
             }
             
-            // For shutdown (going to 0), no ramp limit typically applies
+            // For shutdown (going to 0), check shutdown ramp limit
             if (currentPower === 0) {
-                return true;
+                const shutdownRampLimit = gen.shutdownRamp || gen.rampdown;
+                return prevPower <= shutdownRampLimit * timeHorizon;
             }
             
             // For power changes between non-zero values, enforce ramp constraints
@@ -586,20 +599,20 @@ class UnitCommitmentApp {
             
             if (powerChange > 0) {
                 // Ramping up: check ramp up limit
-                return powerChange <= gen.rampup * timeHorizon;
+                return powerChange <= gen.rampup * timeHorizon && currentPower <= gen.pgmax;
             } else if (powerChange < 0) {
                 // Ramping down: check ramp down limit
-                return Math.abs(powerChange) <= gen.rampdown * timeHorizon;
+                return Math.abs(powerChange) <= gen.rampdown * timeHorizon && currentPower >= gen.pgmin;
             }
             
-            // No change in power
+            // No change in power - always valid
             return true;
         };
 
         const recursiveDispatch = (gens, d, n = gens.length, prevSchedule = []) => {
-            // Round demand to avoid floating point precision issues
-            const roundedDemand = Math.round(d * 100) / 100;
-            const key = `${n}-${roundedDemand}-${prevSchedule.map(s => Math.round(s.power * 100) / 100).join(',')}`;
+            // Round demand to avoid floating point precision issues (use 0.1 MW precision)
+            const roundedDemand = Math.round(d * 10) / 10;
+            const key = `${n}-${roundedDemand}-${prevSchedule.map(s => Math.round(s.power * 10) / 10).join(',')}`;
             if (memo.has(key)) {
                 return memo.get(key);
             }
@@ -669,7 +682,8 @@ class UnitCommitmentApp {
             const prevPower = prevGen ? prevGen.power : 0;
 
             // Try not using this generator (power = 0)
-            if (canRamp(gen, prevPower, 0)) {
+            // BUT: If generator MUST run (minimum up-time constraint), skip this option
+            if (!gen.mustRun && canRamp(gen, prevPower, 0)) {
                 const subResult = recursiveDispatch(gens, roundedDemand, n - 1, prevSchedule);
                 if (subResult !== null && subResult.totalCost < bestCost) {
                     bestCost = subResult.totalCost;
@@ -735,9 +749,9 @@ class UnitCommitmentApp {
                 return aIndex - bIndex;
             });
 
-            // Validate that demand is met
+            // Validate that demand is met (allow 0.5 MW tolerance to match power increment)
             const totalGeneration = bestResult.schedule.reduce((sum, gen) => sum + gen.power, 0);
-            const demandMet = Math.abs(totalGeneration - demand) < 0.01; // Allow small floating point errors
+            const demandMet = Math.abs(totalGeneration - demand) < 0.5;
 
             if (!demandMet && demand > 0) {
                 return {
@@ -746,13 +760,15 @@ class UnitCommitmentApp {
                 };
             }
 
-            // Calculate efficiency properly - avoid division by zero
+            // Calculate cost per MW (lower is better)
             let efficiency;
-            if (bestResult.totalCost === 0) {
-                efficiency = demand === 0 ? '∞' : '0'; // Infinity symbol if no cost, 0 if impossible
+            if (demand === 0) {
+                efficiency = '0'; // No demand, no efficiency metric
+            } else if (bestResult.totalCost === 0) {
+                efficiency = '0'; // Free generation (unrealistic but handle gracefully)
             } else {
-                // Efficiency = MW delivered per ₹ cost
-                efficiency = (demand / bestResult.totalCost).toFixed(4);
+                // Cost per MW = Total cost / Total MW delivered (lower is better)
+                efficiency = (bestResult.totalCost / demand).toFixed(4);
             }
 
             return {
@@ -796,22 +812,30 @@ class UnitCommitmentApp {
                 const state = generatorStates[gen.tag];
                 let canStart = true;
                 let mustRun = false;
+                let adjustedPgmin = gen.pgmin;
+                let adjustedPgmax = gen.pgmax;
                 
                 // If generator is on and hasn't met minimum up time
                 if (state.isOn && state.timeOn < gen.minuptime) {
                     mustRun = true; // Must keep running
+                    // Note: pgmin is NOT adjusted here. The canRamp() function will
+                    // enforce the ramp-down limit correctly based on actual ramp rates.
+                    // An arbitrary adjustment could prevent valid, optimal solutions.
                 }
                 
                 // If generator is off and hasn't met minimum down time
                 if (!state.isOn && state.timeOff < gen.mindowntime) {
                     canStart = false; // Cannot start yet
+                    // Make it infeasible by setting impossible constraints
+                    adjustedPgmin = gen.pgmax + 1000; // Pgmin > Pgmax makes it unusable
                 }
                 
                 return {
                     ...gen,
                     mustRun: mustRun,
                     canStart: canStart,
-                    pgmin: mustRun ? Math.max(gen.pgmin, state.lastPower) : (canStart ? gen.pgmin : gen.pgmax + 1) // Make infeasible if can't start
+                    pgmin: adjustedPgmin,
+                    pgmax: adjustedPgmax
                 };
             });
 
@@ -985,7 +1009,7 @@ class UnitCommitmentApp {
                             <p><strong>Total Cost:</strong> ₹${result.totalCost.toFixed(2)}</p>
                             <p><strong>Demand:</strong> ${result.demand} MW</p>
                             <p><strong>Active Generators:</strong> ${result.activeGenerators}</p>
-                            <p><strong>Efficiency:</strong> ${result.efficiency} MW/₹</p>
+                            <p><strong>Cost per MW:</strong> ₹${result.efficiency}/MW</p>
                         </div>
                     </div>
                 </div>
@@ -1589,25 +1613,28 @@ class UnitCommitmentApp {
             }
         }
         
+        // Check if errors array contains HTML (for multiple generator errors)
+        const errorContent = errors.length === 1 && errors[0].includes('<strong>') 
+            ? errors[0]  // Already formatted HTML
+            : `<ul>${errors.map(error => `<li>${error}</li>`).join('')}</ul>`;  // Simple list
+        
         errorDiv.innerHTML = `
             <div class="error-summary">
                 <i class="fas fa-exclamation-triangle"></i>
                 <strong>${context}:</strong>
-                <ul>
-                    ${errors.map(error => `<li>${error}</li>`).join('')}
-                </ul>
+                ${errorContent}
                 <button onclick="this.parentElement.parentElement.remove()" class="btn-close">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
         `;
         
-        // Auto-remove after 10 seconds
+        // Auto-remove after 15 seconds (longer for multiple errors)
         setTimeout(() => {
             if (errorDiv.parentNode) {
                 errorDiv.remove();
             }
-        }, 10000);
+        }, 15000);
     }
 
     clearFieldErrors() {
@@ -2151,7 +2178,10 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
 
     createEfficiencyGauge() {
         const canvas = document.getElementById('efficiency-gauge');
-        const efficiency = parseFloat(this.optimizationResults.efficiency);
+        
+        // Calculate system utilization (a true percentage metric)
+        const analysis = this.analyzeResults(this.optimizationResults);
+        const utilization = analysis ? parseFloat(analysis.utilization) : 0;
         
         if (this.charts.efficiency) {
             this.charts.efficiency.destroy();
@@ -2162,7 +2192,7 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
             type: 'doughnut',
             data: {
                 datasets: [{
-                    data: [efficiency, 100 - efficiency],
+                    data: [utilization, 100 - utilization],
                     backgroundColor: ['#4CAF50', '#E0E0E0'],
                     borderWidth: 0,
                     circumference: Math.PI,
@@ -2188,11 +2218,11 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
                     ctx.font = 'bold 24px Inter';
                     ctx.fillStyle = '#333';
                     ctx.textAlign = 'center';
-                    ctx.fillText(`${efficiency}%`, 
+                    ctx.fillText(`${utilization}%`, 
                         chartArea.left + chartArea.width / 2, 
                         chartArea.top + chartArea.height / 2 + 10);
                     ctx.font = '12px Inter';
-                    ctx.fillText('Efficiency', 
+                    ctx.fillText('System Utilization', 
                         chartArea.left + chartArea.width / 2, 
                         chartArea.top + chartArea.height / 2 + 30);
                     ctx.restore();
