@@ -5,7 +5,7 @@
  *              the Unit Commitment (UC) and Economic Load Dispatch (ELD) problems.
  *              Uses dynamic programming with memoization for optimal generator scheduling.
  * 
- * @version 2.0.0
+ * @version 1.0.0
  * @author E-Solver Team
  * @license MIT
  * 
@@ -92,7 +92,7 @@ class UnitCommitmentApp {
         STORAGE_KEY_HISTORY: 'uc_optimizer_history',
         
         // App version
-        VERSION: '2.0.0'
+        VERSION: '1.0.0'
     };
     
     constructor() {

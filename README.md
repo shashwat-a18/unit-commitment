@@ -2,7 +2,6 @@
 
 > **Economic Load Dispatch & Unit Commitment Optimization Tool for Power Systems**
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/shashwat-a18/unit-commitment)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/demo-live-brightgreen.svg)](https://shashwat-a18.github.io/unit-commitment)
 
@@ -10,7 +9,7 @@ E-Solver is a modern web application that solves the **Unit Commitment (UC)** an
 
 ---
 
-## í¾“ About This Project
+## ï¿½ï¿½ï¿½ About This Project
 
 This is a **group research project** developed as part of our college curriculum in **Semester 7 of B.Tech**. 
 
@@ -22,11 +21,11 @@ This is a **group research project** developed as part of our college curriculum
 | **Concept & Implementation** | Shashwat |
 | **Research & Documentation** | Team Members |
 
-> í²¡ The complete coding and concept implementation was handled by **Shashwat**.
+> ï¿½ï¿½ï¿½ The complete coding and concept implementation was handled by **Shashwat**.
 
 ---
 
-## í³‹ Table of Contents
+## ï¿½ï¿½ï¿½ Table of Contents
 
 - [About This Project](#-about-this-project)
 - [Features](#-features)
@@ -51,21 +50,21 @@ This is a **group research project** developed as part of our college curriculum
 - **Constraint Handling** - Minimum/maximum power limits, ramp-up/down rates, min uptime/downtime
 
 ### Visualizations
-- í³Š **Bar Charts** - Generator FLAC rankings and cost breakdowns
-- í³ˆ **Line Charts** - Load demand vs generation, cost trends
-- í½© **Doughnut Charts** - Power distribution and efficiency gauges
-- í³¡ **Radar Charts** - Generator utilization analysis
-- í¾¬ **Smooth Animations** - 29 CSS keyframes, elastic/bounce effects
+- ï¿½ï¿½ï¿½ **Bar Charts** - Generator FLAC rankings and cost breakdowns
+- ï¿½ï¿½ï¿½ **Line Charts** - Load demand vs generation, cost trends
+- ï¿½ï¿½ï¿½ **Doughnut Charts** - Power distribution and efficiency gauges
+- ï¿½ï¿½ï¿½ **Radar Charts** - Generator utilization analysis
+- ï¿½ï¿½ï¿½ **Smooth Animations** - 29 CSS keyframes, elastic/bounce effects
 
 ### User Experience
-- í¾¨ **Modern UI** - Clean, responsive design with 70+ transitions
-- í²¾ **Data Persistence** - Save/load projects with localStorage
-- í³¥ **CSV Import/Export** - Bulk import generator data
-- í³± **Mobile Friendly** - Works on all device sizes
+- ï¿½ï¿½ï¿½ **Modern UI** - Clean, responsive design with 70+ transitions
+- ï¿½ï¿½ï¿½ **Data Persistence** - Save/load projects with localStorage
+- ï¿½ï¿½ï¿½ **CSV Import/Export** - Bulk import generator data
+- ï¿½ï¿½ï¿½ **Mobile Friendly** - Works on all device sizes
 
 ---
 
-## íº€ Demo
+## ï¿½ï¿½ï¿½ Demo
 
 **Live Demo:** [https://shashwat-a18.github.io/unit-commitment](https://shashwat-a18.github.io/unit-commitment)
 
@@ -82,7 +81,7 @@ Result: G3 (80 MW) + G1 (70 MW) = â‚¹625.80
 
 ---
 
-## í¿ƒ Quick Start
+## ï¿½ï¿½ï¿½ Quick Start
 
 ### Option 1: GitHub Pages (No Installation)
 Visit the [live demo](https://shashwat-a18.github.io/unit-commitment) directly.
@@ -105,7 +104,7 @@ Simply open `index.html` in any modern web browser.
 
 ---
 
-## í·® Algorithm
+## ï¿½ï¿½ï¿½ Algorithm
 
 ### Cost Function
 The operating cost of a generator is modeled as a quadratic function:
@@ -138,7 +137,7 @@ Lower FLAC = Higher priority for dispatch.
 
 ---
 
-## í³– Usage Guide
+## ï¿½ï¿½ï¿½ Usage Guide
 
 ### 1. Define Generators
 
@@ -169,7 +168,7 @@ G3,15,80,60,2.0,0.012
 
 ---
 
-## í³š API Reference
+## ï¿½ï¿½ï¿½ API Reference
 
 ### UnitCommitmentApp Class
 
@@ -189,7 +188,7 @@ UnitCommitmentApp.CONFIG = {
 
 ---
 
-## í·ª Testing
+## ï¿½ï¿½ï¿½ Testing
 
 ### Run Test Suite
 ```bash
@@ -210,7 +209,7 @@ node test.js
 
 ---
 
-## í³ Project Structure
+## ï¿½ï¿½ï¿½ Project Structure
 
 ```
 e-solver/
@@ -232,7 +231,7 @@ e-solver/
 
 ---
 
-## í» ï¸ Tech Stack
+## ï¿½ï¿½ï¿½ï¸ Tech Stack
 
 | Technology | Version | Purpose |
 |------------|---------|---------|
@@ -244,7 +243,7 @@ e-solver/
 
 ---
 
-## í´ Contributing
+## ï¿½ï¿½ï¿½ Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing`)
@@ -254,13 +253,13 @@ e-solver/
 
 ---
 
-## í³„ License
+## ï¿½ï¿½ï¿½ License
 
 This project is licensed under the MIT License.
 
 ---
 
-## í±¨â€í²» Developer
+## ï¿½ï¿½ï¿½â€ï¿½ï¿½ï¿½ Developer
 
 **Shashwat** - [@shashwat-a18](https://github.com/shashwat-a18)
 
@@ -269,6 +268,6 @@ This project is licensed under the MIT License.
 ---
 
 <p align="center">
-  <strong>í¾“ B.Tech Semester 7 Research Project</strong><br>
+  <strong>ï¿½ï¿½ï¿½ B.Tech Semester 7 Research Project</strong><br>
   Made with âš¡ by E-Solver Team
 </p>
