@@ -1,7 +1,100 @@
-// Unit Commitment Optimizer
-// Modern JavaScript application for power system optimization
+/**
+ * E-Solver - Economic Load Dispatch & Unit Commitment Optimization Tool
+ * 
+ * @description A modern web application for power system optimization that solves
+ *              the Unit Commitment (UC) and Economic Load Dispatch (ELD) problems.
+ *              Uses dynamic programming with memoization for optimal generator scheduling.
+ * 
+ * @version 2.0.0
+ * @author E-Solver Team
+ * @license MIT
+ * 
+ * @features
+ *   - Full Load Average Cost (FLAC) based merit order
+ *   - Dynamic programming optimization algorithm
+ *   - Multi-period scheduling with ramp constraints
+ *   - Interactive Chart.js visualizations
+ *   - Responsive design with smooth animations
+ *   - Project save/load with localStorage
+ *   - CSV import/export functionality
+ * 
+ * @algorithm
+ *   Cost Function: C(P) = Ai + Bi*P + Di*P²
+ *   Where: Ai = Fixed cost (₹)
+ *          Bi = Linear cost coefficient (₹/MW)
+ *          Di = Quadratic cost coefficient (₹/MW²)
+ *          P  = Power output (MW)
+ * 
+ *   FLAC = Ai/Pgmax + Bi + Di*Pgmax (used for merit order ranking)
+ */
 
 class UnitCommitmentApp {
+    // Configuration constants - centralized to avoid hardcoding
+    static CONFIG = {
+        // Generator limits
+        MIN_GENERATORS: 1,
+        MAX_GENERATORS: 10,
+        
+        // History settings
+        MAX_HISTORY_ITEMS: 20,
+        
+        // Optimization settings
+        DEMAND_TOLERANCE_PERCENT: 0.005, // 0.5% of demand
+        DEMAND_TOLERANCE_MIN_MW: 1.0,    // Minimum 1.0 MW tolerance
+        POWER_STEP_SIZE: 1.0,            // MW step for power level generation
+        DEMAND_PRECISION: 1,              // Decimal places for demand rounding
+        
+        // Default generator parameters (for scaling)
+        DEFAULT_BASE_CAPACITY: 50,
+        DEFAULT_CAPACITY_INCREMENT: 25,
+        DEFAULT_RAMP_UP_PERCENT: 0.3,    // 30% of capacity
+        DEFAULT_RAMP_DOWN_PERCENT: 0.25, // 25% of capacity
+        DEFAULT_STARTUP_COST_FACTOR: 0.5, // Factor of fixed cost (Ai)
+        
+        // UI timing (ms)
+        TOAST_DURATION: 5000,
+        TAB_TRANSITION_DELAY: 50,
+        FORM_STAGGER_DELAY: 100,
+        HIGHLIGHT_DURATION: 3000,
+        ERROR_DISPLAY_DURATION: 15000,
+        
+        // Animation settings
+        ANIMATION_DURATION: 1500,
+        ANIMATION_EASING: 'easeOutElastic',
+        CHART_ANIMATION_DELAY: 100,
+        STAGGER_DELAY: 150,
+        HOVER_ANIMATION_DURATION: 300,
+        
+        // Chart animation presets
+        CHART_ANIMATIONS: {
+            bar: { type: 'easeOutBounce', duration: 1500 },
+            line: { type: 'easeInOutQuart', duration: 2000 },
+            doughnut: { type: 'easeOutElastic', duration: 2000 },
+            pie: { type: 'easeOutBack', duration: 1800 },
+            radar: { type: 'easeOutQuart', duration: 1600 }
+        },
+
+        // Chart colors
+        CHART_COLORS: [
+            '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6',
+            '#1abc9c', '#34495e', '#e67e22', '#95a5a6', '#f1c40f'
+        ],
+        
+        // Daily load pattern (24 hours, percentage of peak)
+        DAILY_LOAD_PATTERN: [
+            0.6, 0.55, 0.5, 0.48, 0.5, 0.6, 0.75, 0.9,   // 0-7
+            0.95, 0.9, 0.85, 0.88, 0.92, 0.9, 0.85, 0.88, // 8-15
+            0.95, 1.0, 0.98, 0.92, 0.85, 0.8, 0.75, 0.65  // 16-23
+        ],
+        
+        // Storage keys
+        STORAGE_KEY_PROJECT: 'uc_optimizer_current_project',
+        STORAGE_KEY_HISTORY: 'uc_optimizer_history',
+        
+        // App version
+        VERSION: '2.0.0'
+    };
+    
     constructor() {
         this.generators = [];
         this.currentProject = null;
@@ -9,11 +102,54 @@ class UnitCommitmentApp {
         this.history = this.loadHistory();
         this.charts = {};
         this.animationSettings = {
-            duration: 1000,
-            easing: 'easeInOutQuart'
+            duration: UnitCommitmentApp.CONFIG.ANIMATION_DURATION,
+            easing: UnitCommitmentApp.CONFIG.ANIMATION_EASING
         };
         
         this.init();
+    }
+    
+    // Destroy all charts to prevent memory leaks
+    destroyAllCharts() {
+        Object.keys(this.charts).forEach(key => {
+            if (this.charts[key] && typeof this.charts[key].destroy === 'function') {
+                try {
+                    this.charts[key].destroy();
+                } catch (e) {
+                    console.warn(`Failed to destroy chart ${key}:`, e);
+                }
+            }
+        });
+        this.charts = {};
+    }
+
+    // Create gradient for chart backgrounds
+    createGradient(ctx, color1, color2, direction = 'vertical') {
+        let gradient;
+        if (direction === 'vertical') {
+            gradient = ctx.createLinearGradient(0, 0, 0, 200);
+        } else {
+            gradient = ctx.createLinearGradient(0, 0, 200, 0);
+        }
+        gradient.addColorStop(0, color1);
+        gradient.addColorStop(1, color2);
+        return gradient;
+    }
+
+    // Animate number counters
+    animateCounter(element, start, end, duration = 1500, prefix = '', suffix = '') {
+        const startTime = performance.now();
+        const animate = (currentTime) => {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const easeProgress = 1 - Math.pow(1 - progress, 4); // easeOutQuart
+            const current = start + (end - start) * easeProgress;
+            element.textContent = prefix + current.toFixed(2) + suffix;
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            }
+        };
+        requestAnimationFrame(animate);
     }
 
     init() {
@@ -24,9 +160,9 @@ class UnitCommitmentApp {
 
     // Event Listeners Setup
     setupEventListeners() {
-        // Navigation
+        // Navigation - use currentTarget to handle clicks on child elements (icons, spans)
         document.querySelectorAll('.nav-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
+            btn.addEventListener('click', (e) => this.switchTab(e.currentTarget.dataset.tab));
         });
 
         // Generator Management
@@ -89,30 +225,43 @@ class UnitCommitmentApp {
             activeTab.style.transition = 'all 0.4s ease';
             activeTab.style.opacity = '1';
             activeTab.style.transform = 'translateY(0)';
-        }, 50);
+        }, UnitCommitmentApp.CONFIG.TAB_TRANSITION_DELAY);
     }
 
     highlightOptimizationSection() {
         const demandSection = this.safeGetElement('demand-input');
         const optimizeBtn = this.safeGetElement('optimize-btn');
+        const { HIGHLIGHT_DURATION } = UnitCommitmentApp.CONFIG;
         
         if (demandSection) {
-            // Add highlighting animation
-            demandSection.style.boxShadow = '0 0 15px rgba(37, 99, 235, 0.5)';
-            demandSection.focus();
-            
-            // Remove highlight after animation
-            setTimeout(() => {
-                demandSection.style.boxShadow = '';
-            }, 3000);
+            try {
+                // Add highlighting animation
+                demandSection.style.boxShadow = '0 0 15px rgba(37, 99, 235, 0.5)';
+                demandSection.focus();
+                
+                // Remove highlight after animation
+                setTimeout(() => {
+                    if (demandSection && demandSection.style) {
+                        demandSection.style.boxShadow = '';
+                    }
+                }, HIGHLIGHT_DURATION);
+            } catch (error) {
+                console.error('Error highlighting demand section:', error);
+            }
         }
         
         if (optimizeBtn && !optimizeBtn.disabled) {
-            // Pulse effect on optimize button
-            optimizeBtn.classList.add('btn-pulse');
-            setTimeout(() => {
-                optimizeBtn.classList.remove('btn-pulse');
-            }, 3000);
+            try {
+                // Pulse effect on optimize button
+                optimizeBtn.classList.add('btn-pulse');
+                setTimeout(() => {
+                    if (optimizeBtn && optimizeBtn.classList) {
+                        optimizeBtn.classList.remove('btn-pulse');
+                    }
+                }, HIGHLIGHT_DURATION);
+            } catch (error) {
+                console.error('Error highlighting optimize button:', error);
+            }
         }
     }
 
@@ -126,7 +275,7 @@ class UnitCommitmentApp {
             // Remove highlight after animation
             setTimeout(() => {
                 resultsSection.style.boxShadow = '';
-            }, 4000);
+            }, UnitCommitmentApp.CONFIG.HIGHLIGHT_DURATION + 1000);
         }
     }
 
@@ -160,12 +309,12 @@ class UnitCommitmentApp {
                 helpDiv.innerHTML = helpMessage;
                 demandSection.appendChild(helpDiv);
                 
-                // Auto-remove after 15 seconds
+                // Auto-remove after configured duration
                 setTimeout(() => {
                     if (helpDiv.parentNode) {
                         helpDiv.remove();
                     }
-                }, 15000);
+                }, UnitCommitmentApp.CONFIG.ERROR_DISPLAY_DURATION);
             }
         }
     }
@@ -174,9 +323,10 @@ class UnitCommitmentApp {
     createGeneratorForms() {
         const numGenerators = parseInt(document.getElementById('num-generators').value);
         const container = document.getElementById('generator-forms-container');
+        const { MIN_GENERATORS, MAX_GENERATORS } = UnitCommitmentApp.CONFIG;
         
-        if (numGenerators < 1 || numGenerators > 10) {
-            this.showToast('Please enter a valid number of generators (1-10)', 'error');
+        if (numGenerators < MIN_GENERATORS || numGenerators > MAX_GENERATORS) {
+            this.showToast(`Please enter a valid number of generators (${MIN_GENERATORS}-${MAX_GENERATORS})`, 'error');
             return;
         }
 
@@ -242,20 +392,34 @@ class UnitCommitmentApp {
                 
                 // Add input event listeners for real-time validation
                 this.addFormValidation(i);
-            }, i * 100); // Stagger animation by 100ms
+            }, i * UnitCommitmentApp.CONFIG.FORM_STAGGER_DELAY);
         }
         
         setTimeout(() => {
             document.getElementById('save-section').style.display = 'block';
             document.getElementById('save-section').classList.add('animate-fadeIn');
-        }, (numGenerators + 1) * 100);
+        }, (numGenerators + 1) * UnitCommitmentApp.CONFIG.FORM_STAGGER_DELAY);
         
         this.showToast(`Creating ${numGenerators} generator forms...`, 'success');
     }
 
     saveGenerators() {
-        const numGenerators = parseInt(document.getElementById('num-generators').value);
-        const questionNo = parseInt(document.getElementById('question-number').value);
+        const numGeneratorsElement = document.getElementById('num-generators');
+        const questionNoElement = document.getElementById('question-number');
+        
+        if (!numGeneratorsElement || !questionNoElement) {
+            this.showToast('Form elements not found', 'error');
+            return;
+        }
+        
+        const numGenerators = parseInt(numGeneratorsElement.value);
+        const questionNo = parseInt(questionNoElement.value);
+        
+        if (isNaN(numGenerators) || numGenerators < 1 || isNaN(questionNo) || questionNo < 1) {
+            this.showToast('Invalid number of generators or question number', 'error');
+            return;
+        }
+        
         const generators = [];
         
         // For collecting all validation errors
@@ -264,16 +428,23 @@ class UnitCommitmentApp {
 
         // Collect and validate generator data
         for (let i = 1; i <= numGenerators; i++) {
-            const tag = document.getElementById(`gen_${i}_tag`).value;
-            const pgmin = parseFloat(document.getElementById(`gen_${i}_pgmin`).value);
-            const pgmax = parseFloat(document.getElementById(`gen_${i}_pgmax`).value);
-            const ai = parseFloat(document.getElementById(`gen_${i}_ai`).value);
-            const bi = parseFloat(document.getElementById(`gen_${i}_bi`).value);
-            const di = parseFloat(document.getElementById(`gen_${i}_di`).value);
-            const rampup = parseFloat(document.getElementById(`gen_${i}_rampup`).value);
-            const rampdown = parseFloat(document.getElementById(`gen_${i}_rampdown`).value);
-            const minuptime = parseFloat(document.getElementById(`gen_${i}_minuptime`).value);
-            const mindowntime = parseFloat(document.getElementById(`gen_${i}_mindowntime`).value);
+            const tagElement = document.getElementById(`gen_${i}_tag`);
+            if (!tagElement) {
+                allErrors.push({ generator: `Generator ${i}`, errors: ['Form elements not found'] });
+                hasErrors = true;
+                continue;
+            }
+            
+            const tag = tagElement.value;
+            const pgmin = parseFloat(document.getElementById(`gen_${i}_pgmin`)?.value || '0');
+            const pgmax = parseFloat(document.getElementById(`gen_${i}_pgmax`)?.value || '0');
+            const ai = parseFloat(document.getElementById(`gen_${i}_ai`)?.value || '0');
+            const bi = parseFloat(document.getElementById(`gen_${i}_bi`)?.value || '0');
+            const di = parseFloat(document.getElementById(`gen_${i}_di`)?.value || '0');
+            const rampup = parseFloat(document.getElementById(`gen_${i}_rampup`)?.value || '0');
+            const rampdown = parseFloat(document.getElementById(`gen_${i}_rampdown`)?.value || '0');
+            const minuptime = parseFloat(document.getElementById(`gen_${i}_minuptime`)?.value || '1');
+            const mindowntime = parseFloat(document.getElementById(`gen_${i}_mindowntime`)?.value || '1');
 
             // Enhanced validation with specific error feedback
             const errors = [];
@@ -389,75 +560,6 @@ class UnitCommitmentApp {
     runOptimization() {
         const demand = parseFloat(document.getElementById('demand-input').value);
         
-        // HARDCODED BYPASS FOR DEMAND = 100 MW - PRIORITY CHECK
-        if (demand === 100 || Math.abs(demand - 100) < 0.01) {
-            console.log('🚀 Using hardcoded solution for demand = 100 MW');
-            this.showLoading(true);
-            
-            setTimeout(() => {
-                // Hardcoded optimal solution for demand = 100 MW
-                const result = {
-                    success: true,
-                    demand: 100,
-                    totalCost: 390.00,
-                    efficiency: 3.90,
-                    activeGenerators: 2,
-                    selectedGenerators: [
-                        {
-                            tag: 'G1',
-                            power: 50,
-                            cost: 200.00,
-                            efficiency: 4.00,
-                            pgmin: 10,
-                            pgmax: 100,
-                            ai: 50,
-                            bi: 2.5,
-                            di: 0.01
-                        },
-                        {
-                            tag: 'G3',
-                            power: 50,
-                            cost: 190.00,
-                            efficiency: 3.80,
-                            pgmin: 15,
-                            pgmax: 80,
-                            ai: 60,
-                            bi: 2.0,
-                            di: 0.012
-                        }
-                    ],
-                    schedule: [
-                        { generator: 'G1', power: 50, cost: 200.00 },
-                        { generator: 'G3', power: 50, cost: 190.00 }
-                    ],
-                    allGenerators: [
-                        { tag: 'G1', power: 50, cost: 200.00, status: 'ON' },
-                        { tag: 'G2', power: 0, cost: 0, status: 'OFF' },
-                        { tag: 'G3', power: 50, cost: 190.00, status: 'ON' }
-                    ],
-                    timestamp: new Date().toISOString()
-                };
-                
-                this.optimizationResults = result;
-                this.updateOptimizationResults(result);
-                this.showLoading(false);
-                
-                this.showToast(`✨ Optimization completed! Total cost: ₹${result.totalCost.toFixed(2)}, Cost per MW: ₹${result.efficiency.toFixed(2)}/MW`, 'success');
-                this.createOptimizationCharts(result);
-                
-                // Switch to results tab and create advanced visualizations
-                setTimeout(() => {
-                    this.switchTab('results');
-                    // Trigger advanced visualizations after tab switch
-                    setTimeout(() => {
-                        this.createAdvancedVisualizations();
-                    }, 300);
-                }, 2000);
-            }, 500);
-            
-            return;
-        }
-        
         if (!this.currentProject || this.generators.length === 0) {
             this.showToast('Please create and save generators first', 'error');
             return;
@@ -484,7 +586,8 @@ class UnitCommitmentApp {
                 this.showLoading(false);
                 
                 if (result.success) {
-                    this.showToast(`Optimization completed! Total cost: ₹${result.totalCost.toFixed(2)}, Cost per MW: ₹${result.efficiency}/MW`, 'success');
+                    const efficiencyValue = parseFloat(result.efficiency);
+                    this.showToast(`Optimization completed! Total cost: ₹${result.totalCost.toFixed(2)}, Cost per MW: ₹${efficiencyValue.toFixed(2)}/MW`, 'success');
                     this.createOptimizationCharts(result);
                     
                     // Smooth transition to results with delay for user to see the success message
@@ -524,12 +627,8 @@ class UnitCommitmentApp {
                 break;
                 
             case 'daily':
-                // Simple daily load pattern (percentage of peak)
-                const dailyPattern = [
-                    0.6, 0.55, 0.5, 0.48, 0.5, 0.6, 0.75, 0.9,  // 0-7
-                    0.95, 0.9, 0.85, 0.88, 0.92, 0.9, 0.85, 0.88, // 8-15
-                    0.95, 1.0, 0.98, 0.92, 0.85, 0.8, 0.75, 0.65  // 16-23
-                ];
+                // Use daily load pattern from configuration
+                const dailyPattern = UnitCommitmentApp.CONFIG.DAILY_LOAD_PATTERN;
                 for (let i = 0; i < periods; i++) {
                     const hourIndex = i % 24;
                     demands.push(baseDemand * dailyPattern[hourIndex]);
@@ -540,13 +639,21 @@ class UnitCommitmentApp {
                 const customValues = document.getElementById('demand-values').value;
                 const parsed = customValues.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
                 if (parsed.length === 0) {
-                    this.showToast('Please enter valid demand values', 'error');
+                    this.showToast('Please enter valid demand values (comma-separated numbers)', 'error');
                     return null;
+                }
+                // Inform user if pattern will repeat
+                if (parsed.length < periods) {
+                    this.showToast(`Pattern will repeat: ${parsed.length} values for ${periods} periods`, 'warning');
                 }
                 for (let i = 0; i < periods; i++) {
                     demands.push(parsed[i % parsed.length]);
                 }
                 break;
+                
+            default:
+                this.showToast('Unknown demand pattern type', 'error');
+                return null;
         }
         
         return demands;
@@ -600,160 +707,188 @@ class UnitCommitmentApp {
 
     optimizeUnitCommitment(generators, demand, timeHorizon = 1, prevSchedule = []) {
         const memo = new Map();
+        const { POWER_STEP_SIZE, DEMAND_TOLERANCE_PERCENT, DEMAND_TOLERANCE_MIN_MW, DEFAULT_STARTUP_COST_FACTOR } = UnitCommitmentApp.CONFIG;
         
         const costFunction = (gen, power, isStartup = false) => {
             if (power === 0) return 0;
             // Operating cost per period: ai (fixed when running) + bi * power + di * power^2
-            // Note: ai is the fixed cost per period when the unit is committed
             const operatingCost = gen.ai + gen.bi * power + gen.di * power * power;
             // Startup cost: one-time cost when transitioning from off to on
-            // Default to 50% of fixed cost if not specified (more realistic than 10%)
-            const startupCost = isStartup ? (gen.startupCost || gen.ai * 0.5) : 0;
+            const startupCost = isStartup ? (gen.startupCost || gen.ai * DEFAULT_STARTUP_COST_FACTOR) : 0;
             return operatingCost + startupCost;
         };
 
-        // Quick check: Find the best single generator solution first
-        let bestSingleGen = null;
-        let bestSingleCost = Infinity;
-        
-        for (const gen of generators) {
-            if (gen.pgmin <= demand && demand <= gen.pgmax) {
-                const cost = costFunction(gen, demand, true);
-                if (cost < bestSingleCost) {
-                    bestSingleCost = cost;
-                    bestSingleGen = {
-                        success: true,
-                        demand: demand,
-                        schedule: [{
-                            generator: gen.tag,
-                            power: demand,
-                            cost: cost,
-                            rampConstraintSatisfied: true
-                        }],
-                        totalCost: cost,
-                        totalGeneration: demand,
-                        activeGenerators: 1,
-                        efficiency: (cost / demand).toFixed(4)  // FIXED: cost per MW, lower is better
-                    };
-                }
-            }
-        }
-        
-        // Note: We do NOT prefer single generator solutions as they are rarely optimal.
-        // The recursive dispatch algorithm will find the most economical combination.
+        // Helper to get previous power for a generator
+        const getPrevPower = (genTag) => {
+            const prev = prevSchedule.find(s => s.generator === genTag);
+            return prev ? prev.power : 0;
+        };
 
         // Check if generator can ramp from previous power to current power
         const canRamp = (gen, prevPower, currentPower) => {
-            // For first period or when previously off, check startup ramp constraints
-            if (prevPower === 0) {
-                if (currentPower === 0) {
-                    return true; // Staying off is always valid
-                }
-                // Starting up: must be within generator limits and respect startup ramp
-                // Some systems have startup ramp limits different from normal operation
-                const startupRampLimit = gen.startupRamp || gen.rampup; // Use startupRamp if available
-                return currentPower >= gen.pgmin && 
-                       currentPower <= gen.pgmax && 
-                       currentPower <= startupRampLimit * timeHorizon;
+            // Staying off is always valid
+            if (prevPower === 0 && currentPower === 0) {
+                return true;
             }
             
-            // For shutdown (going to 0), check shutdown ramp limit
-            if (currentPower === 0) {
+            // Starting up from off state
+            if (prevPower === 0 && currentPower > 0) {
+                // Must respect startup ramp limit
+                const startupRampLimit = gen.startupRamp || gen.rampup;
+                const maxStartupPower = startupRampLimit * timeHorizon;
+                return currentPower >= gen.pgmin && 
+                       currentPower <= gen.pgmax && 
+                       currentPower <= maxStartupPower;
+            }
+            
+            // Shutting down (going to 0)
+            if (prevPower > 0 && currentPower === 0) {
+                // Must respect shutdown ramp limit (can only shut down if prev power is low enough)
                 const shutdownRampLimit = gen.shutdownRamp || gen.rampdown;
                 return prevPower <= shutdownRampLimit * timeHorizon;
             }
             
-            // For power changes between non-zero values, enforce ramp constraints
+            // Power change between non-zero values
             const powerChange = currentPower - prevPower;
             
             if (powerChange > 0) {
-                // Ramping up: check ramp up limit
+                // Ramping up
                 return powerChange <= gen.rampup * timeHorizon && currentPower <= gen.pgmax;
             } else if (powerChange < 0) {
-                // Ramping down: check ramp down limit
+                // Ramping down
                 return Math.abs(powerChange) <= gen.rampdown * timeHorizon && currentPower >= gen.pgmin;
             }
             
-            // No change in power - always valid
+            // No change - always valid
             return true;
         };
 
-        const recursiveDispatch = (gens, d, n = gens.length, prevSchedule = []) => {
-            // Round demand to avoid floating point precision issues (use 0.1 MW precision)
+        // Generate valid power levels for a generator respecting constraints
+        const generatePowerLevels = (gen, prevPower, maxNeeded, stepSize = POWER_STEP_SIZE) => {
+            const levels = [];
+            
+            // Calculate ramp-constrained bounds
+            let minAllowed = gen.pgmin;
+            let maxAllowed = gen.pgmax;
+            
+            // Only apply ramp constraints if there's a previous schedule (multi-period)
+            // For single-period cold-start, allow full operating range
+            const hasPrevSchedule = prevSchedule && prevSchedule.length > 0;
+            
+            if (hasPrevSchedule && prevPower > 0) {
+                // Already running - apply ramp limits
+                minAllowed = Math.max(gen.pgmin, prevPower - gen.rampdown * timeHorizon);
+                maxAllowed = Math.min(gen.pgmax, prevPower + gen.rampup * timeHorizon);
+            } else if (hasPrevSchedule && prevPower === 0) {
+                // Starting up from off state - apply startup ramp limit
+                const startupLimit = gen.startupRamp || gen.rampup;
+                maxAllowed = Math.min(gen.pgmax, startupLimit * timeHorizon);
+            }
+            // else: cold start (no prev schedule) - use full pgmin to pgmax range
+            
+            // Cap at what's needed
+            maxAllowed = Math.min(maxAllowed, maxNeeded);
+            
+            // Only generate if there's a valid range
+            if (maxAllowed >= minAllowed && minAllowed <= maxNeeded) {
+                for (let p = minAllowed; p <= maxAllowed; p += stepSize) {
+                    levels.push(Math.round(p * 10) / 10);
+                }
+                // Add exact max if not included
+                if (!levels.includes(Math.round(maxAllowed * 10) / 10)) {
+                    levels.push(Math.round(maxAllowed * 10) / 10);
+                }
+            }
+            
+            return levels;
+        };
+
+        const recursiveDispatch = (gens, d, n = gens.length) => {
+            // Round demand to avoid floating point precision issues
             const roundedDemand = Math.round(d * 10) / 10;
-            const key = `${n}-${roundedDemand}-${prevSchedule.map(s => Math.round(s.power * 10) / 10).join(',')}`;
+            
+            // Handle zero or negative demand
+            if (roundedDemand <= 0) {
+                // Check if all generators can shut down (respecting ramp limits)
+                let canAllShutdown = true;
+                for (const g of gens.slice(0, n)) {
+                    const prevPower = getPrevPower(g.tag);
+                    if (prevPower > 0 && !canRamp(g, prevPower, 0)) {
+                        canAllShutdown = false;
+                        break;
+                    }
+                    if (g.mustRun) {
+                        canAllShutdown = false;
+                        break;
+                    }
+                }
+                if (canAllShutdown && roundedDemand <= 0) {
+                    return { schedule: [], totalCost: 0 };
+                }
+            }
+            
+            const key = `${n}-${roundedDemand}`;
             if (memo.has(key)) {
                 return memo.get(key);
             }
 
+            if (n === 0) {
+                // No generators left - only succeed if demand is zero
+                const result = roundedDemand <= 0.5 ? { schedule: [], totalCost: 0 } : null;
+                memo.set(key, result);
+                return result;
+            }
+
             if (n === 1) {
                 const gen = gens[0];
-                const prevGen = prevSchedule.find(s => s.generator === gen.tag);
-                const prevPower = prevGen ? prevGen.power : 0;
+                const prevPower = getPrevPower(gen.tag);
+                let bestResult = null;
+                let bestCost = Infinity;
 
-                // Try different power levels within constraints
-                let bestSingleResult = null;
-                let bestSingleCost = Infinity;
-
-                // First try not using this generator (power = 0)
-                if (roundedDemand <= 0 && canRamp(gen, prevPower, 0)) {
-                    bestSingleResult = {
-                        schedule: [],
-                        totalCost: 0
-                    };
-                    bestSingleCost = 0;
+                // Try not using this generator (if allowed and can ramp down)
+                if (!gen.mustRun && canRamp(gen, prevPower, 0)) {
+                    if (roundedDemand <= 0.5) {
+                        bestResult = { schedule: [], totalCost: 0 };
+                        bestCost = 0;
+                    }
                 }
 
-                // Then try using the generator at valid power levels
-                const minPower = Math.max(gen.pgmin, Math.ceil(gen.pgmin * 2) / 2); // Round up to nearest 0.5
-                const maxPower = Math.min(roundedDemand, gen.pgmax);
+                // Try using this generator at valid power levels
+                const powerLevels = generatePowerLevels(gen, prevPower, roundedDemand, 1.0);
                 
-                if (maxPower >= minPower) {
-                    // Create array of power levels to test, including exact demand
-                    const powerLevels = [];
-                    for (let power = minPower; power <= maxPower; power += 0.5) {
-                        powerLevels.push(power);
-                    }
-                    // Add exact demand if it's within range and not already included
-                    if (roundedDemand >= minPower && roundedDemand <= maxPower && !powerLevels.includes(roundedDemand)) {
-                        powerLevels.push(roundedDemand);
-                        powerLevels.sort((a, b) => a - b);
-                    }
-                    
-                    for (const power of powerLevels) {
-                        if (canRamp(gen, prevPower, power)) {
-                            const isStartup = prevPower === 0 && power > 0;
-                            const cost = costFunction(gen, power, isStartup);
-                            if (cost < bestSingleCost) {
-                                bestSingleCost = cost;
-                                bestSingleResult = {
-                                    schedule: [{ 
-                                        generator: gen.tag, 
-                                        power: power, 
-                                        cost: cost,
-                                        rampConstraintSatisfied: true 
-                                    }],
-                                    totalCost: cost
-                                };
-                            }
+                for (const power of powerLevels) {
+                    // Check if this power level approximately meets demand
+                    if (Math.abs(power - roundedDemand) <= 0.5) {
+                        const isStartup = prevPower === 0 && power > 0;
+                        const cost = costFunction(gen, power, isStartup);
+                        if (cost < bestCost) {
+                            bestCost = cost;
+                            bestResult = {
+                                schedule: [{ 
+                                    generator: gen.tag, 
+                                    power: power, 
+                                    cost: cost,
+                                    rampConstraintSatisfied: true 
+                                }],
+                                totalCost: cost
+                            };
                         }
                     }
                 }
 
-                memo.set(key, bestSingleResult);
-                return bestSingleResult;
+                memo.set(key, bestResult);
+                return bestResult;
             }
 
+            // Multiple generators - try combinations
             let bestCost = Infinity;
             let bestSchedule = null;
             const gen = gens[n - 1];
-            const prevGen = prevSchedule.find(s => s.generator === gen.tag);
-            const prevPower = prevGen ? prevGen.power : 0;
+            const prevPower = getPrevPower(gen.tag);
 
-            // Try not using this generator (power = 0)
-            // BUT: If generator MUST run (minimum up-time constraint), skip this option
+            // Try NOT using this generator (if allowed)
             if (!gen.mustRun && canRamp(gen, prevPower, 0)) {
-                const subResult = recursiveDispatch(gens, roundedDemand, n - 1, prevSchedule);
+                const subResult = recursiveDispatch(gens, roundedDemand, n - 1);
                 if (subResult !== null && subResult.totalCost < bestCost) {
                     bestCost = subResult.totalCost;
                     bestSchedule = subResult.schedule;
@@ -761,41 +896,25 @@ class UnitCommitmentApp {
             }
 
             // Try using this generator at valid power levels
-            const minPower = Math.max(gen.pgmin, Math.ceil(gen.pgmin * 2) / 2); // Round up to nearest 0.5
-            const maxPower = Math.min(roundedDemand, gen.pgmax);
+            const powerLevels = generatePowerLevels(gen, prevPower, roundedDemand, 1.0);
             
-            if (maxPower >= minPower) {
-                // Create array of power levels to test, including values that help meet exact demand
-                const powerLevels = [];
-                for (let power = minPower; power <= maxPower; power += 0.5) {
-                    powerLevels.push(power);
-                }
-                // Add power level that would exactly meet remaining demand if feasible
-                if (roundedDemand >= minPower && roundedDemand <= maxPower && !powerLevels.includes(roundedDemand)) {
-                    powerLevels.push(roundedDemand);
-                    powerLevels.sort((a, b) => a - b);
-                }
+            for (const power of powerLevels) {
+                const remainingDemand = roundedDemand - power;
+                const subResult = recursiveDispatch(gens, remainingDemand, n - 1);
                 
-                for (const power of powerLevels) {
-                    if (canRamp(gen, prevPower, power)) {
-                        const remainingDemand = roundedDemand - power;
-                        const subResult = recursiveDispatch(gens, remainingDemand, n - 1, prevSchedule);
-                        
-                        if (subResult !== null) {
-                            const isStartup = prevPower === 0 && power > 0;
-                            const genCost = costFunction(gen, power, isStartup);
-                            const totalCost = genCost + subResult.totalCost;
-                            
-                            if (totalCost < bestCost) {
-                                bestCost = totalCost;
-                                bestSchedule = [...subResult.schedule, { 
-                                    generator: gen.tag, 
-                                    power: power, 
-                                    cost: genCost,
-                                    rampConstraintSatisfied: true 
-                                }];
-                            }
-                        }
+                if (subResult !== null) {
+                    const isStartup = prevPower === 0 && power > 0;
+                    const genCost = costFunction(gen, power, isStartup);
+                    const totalCost = genCost + subResult.totalCost;
+                    
+                    if (totalCost < bestCost) {
+                        bestCost = totalCost;
+                        bestSchedule = [...subResult.schedule, { 
+                            generator: gen.tag, 
+                            power: power, 
+                            cost: genCost,
+                            rampConstraintSatisfied: true 
+                        }];
                     }
                 }
             }
@@ -805,24 +924,52 @@ class UnitCommitmentApp {
             return result;
         };
 
-        // Try with all generators (they'll be filtered internally based on demand)
-        const roundedDemand = Math.round(demand * 100) / 100;
-        const result = recursiveDispatch(generators, roundedDemand, generators.length, prevSchedule);
+        // Handle zero demand case
+        if (demand === 0) {
+            // Check if all generators can be off
+            let canAllBeOff = true;
+            for (const gen of generators) {
+                const prevPower = getPrevPower(gen.tag);
+                if (gen.mustRun || (prevPower > 0 && !canRamp(gen, prevPower, 0))) {
+                    canAllBeOff = false;
+                    break;
+                }
+            }
+            if (canAllBeOff) {
+                return {
+                    success: true,
+                    demand: 0,
+                    schedule: [],
+                    totalCost: 0,
+                    totalGeneration: 0,
+                    activeGenerators: 0,
+                    efficiency: '0.0000'
+                };
+            }
+        }
+
+        // Run recursive dispatch
+        const roundedDemand = Math.round(demand * 10) / 10;
+        const result = recursiveDispatch(generators, roundedDemand, generators.length);
         let bestResult = result;
 
         if (bestResult) {
-            // Sort schedule by generator order and add summary
+            // Sort schedule by generator order
             bestResult.schedule.sort((a, b) => {
                 const aIndex = generators.findIndex(g => g.tag === a.generator);
                 const bIndex = generators.findIndex(g => g.tag === b.generator);
                 return aIndex - bIndex;
             });
 
-            // Validate that demand is met (allow 0.5 MW tolerance to match power increment)
+            // Validate demand is met (0.5% or 1.0 MW tolerance, whichever is larger)
             const totalGeneration = bestResult.schedule.reduce((sum, gen) => sum + gen.power, 0);
-            const demandMet = Math.abs(totalGeneration - demand) < 0.5;
+            const demandError = Math.abs(totalGeneration - demand);
+            const tolerancePercent = demand * 0.005; // 0.5% of demand
+            const tolerance = Math.max(tolerancePercent, 1.0); // At least 1.0 MW
+            const demandMet = demandError <= tolerance;
 
             if (!demandMet && demand > 0) {
+                console.warn(`Demand tolerance exceeded: Required ${demand} MW, Generated ${totalGeneration.toFixed(2)} MW`);
                 return {
                     success: false,
                     error: `Demand not met: Required ${demand} MW, Generated ${totalGeneration.toFixed(2)} MW`
@@ -831,13 +978,12 @@ class UnitCommitmentApp {
 
             // Calculate cost per MW (lower is better)
             let efficiency;
-            if (demand === 0) {
-                efficiency = '0'; // No demand, no efficiency metric
+            if (demand === 0 || totalGeneration === 0) {
+                efficiency = '0.0000';
             } else if (bestResult.totalCost === 0) {
-                efficiency = '0'; // Free generation (unrealistic but handle gracefully)
+                efficiency = '0.0000';
             } else {
-                // Cost per MW = Total cost / Total MW delivered (lower is better)
-                efficiency = (bestResult.totalCost / demand).toFixed(4);
+                efficiency = (bestResult.totalCost / totalGeneration).toFixed(4);
             }
 
             return {
@@ -868,43 +1014,60 @@ class UnitCommitmentApp {
             generatorStates[gen.tag] = {
                 isOn: false,
                 timeOn: 0,
-                timeOff: 0,
+                timeOff: gen.mindowntime || 1, // Start with min down time satisfied (can start immediately)
                 lastPower: 0
             };
         });
 
         for (let period = 0; period < periods; period++) {
-            const demand = demands[period] || demands[0]; // Use first demand if not enough periods
+            const demand = demands[period] !== undefined ? demands[period] : demands[0];
             
-            // Apply minimum up/down time constraints
+            // Build list of feasible generators with adjusted constraints
             const feasibleGenerators = generators.map(gen => {
                 const state = generatorStates[gen.tag];
-                let canStart = true;
                 let mustRun = false;
+                let canTurnOn = true;
                 let adjustedPgmin = gen.pgmin;
                 let adjustedPgmax = gen.pgmax;
                 
-                // If generator is on and hasn't met minimum up time
+                // MINIMUM UP TIME: If generator is on and hasn't met minimum up time, it MUST stay on
                 if (state.isOn && state.timeOn < gen.minuptime) {
-                    mustRun = true; // Must keep running
-                    // Note: pgmin is NOT adjusted here. The canRamp() function will
-                    // enforce the ramp-down limit correctly based on actual ramp rates.
-                    // An arbitrary adjustment could prevent valid, optimal solutions.
+                    mustRun = true;
+                    // Apply ramp limits from last power level
+                    if (state.lastPower > 0) {
+                        adjustedPgmin = Math.max(gen.pgmin, state.lastPower - gen.rampdown);
+                        adjustedPgmax = Math.min(gen.pgmax, state.lastPower + gen.rampup);
+                    }
                 }
                 
-                // If generator is off and hasn't met minimum down time
+                // MINIMUM DOWN TIME: If generator is off and hasn't met minimum down time, it CANNOT start
                 if (!state.isOn && state.timeOff < gen.mindowntime) {
-                    canStart = false; // Cannot start yet
-                    // Make it infeasible by setting impossible constraints
-                    adjustedPgmin = gen.pgmax + 1000; // Pgmin > Pgmax makes it unusable
+                    canTurnOn = false;
+                    // Mark generator as unavailable by setting invalid power range
+                    adjustedPgmin = Infinity; // Clearly indicates unavailable
+                    adjustedPgmax = 0;
+                }
+                
+                // If generator was running, apply ramp constraints
+                if (state.isOn && state.lastPower > 0 && !mustRun) {
+                    adjustedPgmin = Math.max(gen.pgmin, state.lastPower - gen.rampdown);
+                    adjustedPgmax = Math.min(gen.pgmax, state.lastPower + gen.rampup);
+                }
+                
+                // If generator is starting up (was off), apply startup ramp
+                if (!state.isOn && canTurnOn) {
+                    const startupLimit = gen.startupRamp || gen.rampup;
+                    adjustedPgmax = Math.min(gen.pgmax, startupLimit);
                 }
                 
                 return {
                     ...gen,
                     mustRun: mustRun,
-                    canStart: canStart,
+                    canTurnOn: canTurnOn,
                     pgmin: adjustedPgmin,
-                    pgmax: adjustedPgmax
+                    pgmax: adjustedPgmax,
+                    originalPgmin: gen.pgmin,
+                    originalPgmax: gen.pgmax
                 };
             });
 
@@ -1047,7 +1210,22 @@ class UnitCommitmentApp {
     updateOptimizationResults(result) {
         const container = document.getElementById('optimization-results');
         
+        if (!container) {
+            console.error('Optimization results container not found');
+            return;
+        }
+        
+        if (!result) {
+            container.innerHTML = '<p class="no-data">No optimization result available.</p>';
+            return;
+        }
+        
         if (result.success) {
+            if (!result.schedule || result.schedule.length === 0) {
+                container.innerHTML = '<p class="no-data">No generators in schedule.</p>';
+                return;
+            }
+            
             const scheduleRows = result.schedule.map((item, index) => {
                 const powerPercentage = ((item.power / result.demand) * 100).toFixed(1);
                 return `
@@ -1142,6 +1320,17 @@ class UnitCommitmentApp {
                             <tbody>
                                 ${generators.map(gen => {
                                     const genData = this.generators.find(g => g.tag === gen.generator);
+                                    if (!genData) {
+                                        return `
+                                        <tr>
+                                            <td>${gen.generator}</td>
+                                            <td>N/A</td>
+                                            <td>N/A</td>
+                                            <td>N/A</td>
+                                            <td>₹${gen.cost.toFixed(2)}</td>
+                                        </tr>
+                                        `;
+                                    }
                                     const fixedCost = genData.ai;
                                     const varCost = genData.bi * gen.power;
                                     const quadCost = genData.di * gen.power * gen.power;
@@ -1162,10 +1351,10 @@ class UnitCommitmentApp {
                     <div class="card">
                         <h3><i class="fas fa-analytics"></i> Performance Analysis</h3>
                         <div class="analysis-grid">
-                            <p><strong>Most Economical Generator:</strong> ${analysis.mostEconomical}</p>
-                            <p><strong>Highest Load Generator:</strong> ${analysis.highestLoad}</p>
-                            <p><strong>Average Cost per MW:</strong> ₹${analysis.avgCostPerMW}</p>
-                            <p><strong>System Utilization:</strong> ${analysis.utilization}%</p>
+                            <p><strong>Most Economical Generator:</strong> ${analysis ? analysis.mostEconomical : 'N/A'}</p>
+                            <p><strong>Highest Load Generator:</strong> ${analysis ? analysis.highestLoad : 'N/A'}</p>
+                            <p><strong>Average Cost per MW:</strong> ₹${analysis ? analysis.avgCostPerMW : '0.00'}</p>
+                            <p><strong>System Utilization:</strong> ${analysis ? analysis.utilization : '0.0'}%</p>
                         </div>
                     </div>
                 </div>
@@ -1187,22 +1376,53 @@ class UnitCommitmentApp {
         if (!results.success) return null;
 
         const schedule = results.schedule;
-        const mostEconomical = schedule.reduce((min, gen) => 
-            (gen.cost / gen.power) < (min.cost / min.power) ? gen : min
-        );
         
-        const highestLoad = schedule.reduce((max, gen) => 
+        // Handle empty schedule case
+        if (!schedule || schedule.length === 0) {
+            return {
+                mostEconomical: 'N/A',
+                highestLoad: 'N/A',
+                avgCostPerMW: '0.00',
+                utilization: '0.0'
+            };
+        }
+        
+        // Filter out generators with zero power to avoid division by zero
+        const activeGenerators = schedule.filter(gen => gen.power > 0);
+        
+        if (activeGenerators.length === 0) {
+            return {
+                mostEconomical: 'N/A',
+                highestLoad: 'N/A',
+                avgCostPerMW: '0.00',
+                utilization: '0.0'
+            };
+        }
+        
+        // Use explicit initial value to avoid edge cases
+        const mostEconomical = activeGenerators.reduce((min, gen, index) => {
+            if (index === 0) return gen;
+            const minCostPerMW = min.power > 0 ? min.cost / min.power : Infinity;
+            const genCostPerMW = gen.power > 0 ? gen.cost / gen.power : Infinity;
+            return genCostPerMW < minCostPerMW ? gen : min;
+        }, activeGenerators[0]);
+        
+        const highestLoad = activeGenerators.reduce((max, gen) => 
             gen.power > max.power ? gen : max
         );
 
         const totalCapacity = this.generators.reduce((sum, gen) => sum + gen.pgmax, 0);
         const usedCapacity = schedule.reduce((sum, gen) => sum + gen.power, 0);
+        
+        // Prevent division by zero
+        const avgCostPerMW = results.demand > 0 ? (results.totalCost / results.demand).toFixed(2) : '0.00';
+        const utilization = totalCapacity > 0 ? ((usedCapacity / totalCapacity) * 100).toFixed(1) : '0.0';
 
         return {
             mostEconomical: mostEconomical.generator,
             highestLoad: highestLoad.generator,
-            avgCostPerMW: (results.totalCost / results.demand).toFixed(2),
-            utilization: ((usedCapacity / totalCapacity) * 100).toFixed(1)
+            avgCostPerMW: avgCostPerMW,
+            utilization: utilization
         };
     }
 
@@ -1373,13 +1593,27 @@ class UnitCommitmentApp {
                     data: demands,
                     borderColor: '#3498db',
                     backgroundColor: 'rgba(52, 152, 219, 0.1)',
-                    yAxisID: 'y'
+                    yAxisID: 'y',
+                    tension: 0.4,
+                    pointRadius: 6,
+                    pointHoverRadius: 10,
+                    pointBackgroundColor: '#3498db',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    borderWidth: 3
                 }, {
                     label: 'Cost (₹)',
                     data: costs,
                     borderColor: '#e74c3c',
-                    backgroundColor: 'rgba(231, 76, 60, 0.1)',
-                    yAxisID: 'y1'
+                    backgroundColor: 'rgba(231, 76, 60, 0.15)',
+                    yAxisID: 'y1',
+                    tension: 0.4,
+                    pointRadius: 6,
+                    pointHoverRadius: 10,
+                    pointBackgroundColor: '#e74c3c',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    borderWidth: 3
                 }]
             },
             options: {
@@ -1387,11 +1621,26 @@ class UnitCommitmentApp {
                 plugins: {
                     title: {
                         display: true,
-                        text: 'Multi-Period Demand and Cost Trends'
+                        text: 'Multi-Period Demand and Cost Trends',
+                        font: { size: 14, weight: 'bold' },
+                        padding: { bottom: 15 }
                     },
                     legend: {
                         display: true,
-                        position: 'top'
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 20
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.85)',
+                        titleFont: { size: 14, weight: 'bold' },
+                        bodyFont: { size: 13 },
+                        padding: 14,
+                        cornerRadius: 10,
+                        mode: 'index',
+                        intersect: false
                     }
                 },
                 scales: {
@@ -1402,6 +1651,9 @@ class UnitCommitmentApp {
                         title: {
                             display: true,
                             text: 'Power (MW)'
+                        },
+                        grid: {
+                            color: 'rgba(0,0,0,0.05)'
                         }
                     },
                     y1: {
@@ -1415,11 +1667,29 @@ class UnitCommitmentApp {
                         grid: {
                             drawOnChartArea: false,
                         },
+                    },
+                    x: {
+                        grid: { display: false }
                     }
                 },
                 animation: {
-                    duration: 2000,
-                    easing: 'easeInOutQuart'
+                    duration: 2500,
+                    easing: 'easeOutElastic',
+                    delay: (context) => context.dataIndex * 100
+                },
+                hover: {
+                    animationDuration: 300
+                },
+                transitions: {
+                    active: {
+                        animation: {
+                            duration: 300
+                        }
+                    }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
                 }
             }
         });
@@ -1439,7 +1709,7 @@ class UnitCommitmentApp {
         
         // Calculate generation by each generator for each hour
         const generatorDatasets = this.generators.map((gen, index) => {
-            const colors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#34495e', '#e67e22', '#95a5a6', '#f1c40f'];
+            const colors = UnitCommitmentApp.CONFIG.CHART_COLORS;
             const color = colors[index % colors.length];
             
             const genData = result.schedules.map(period => {
@@ -1452,8 +1722,14 @@ class UnitCommitmentApp {
                 data: genData,
                 backgroundColor: color + '80',
                 borderColor: color,
-                borderWidth: 2,
-                fill: false
+                borderWidth: 3,
+                fill: false,
+                tension: 0.3,
+                pointRadius: 5,
+                pointHoverRadius: 8,
+                pointBackgroundColor: color,
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2
             };
         });
 
@@ -1466,10 +1742,18 @@ class UnitCommitmentApp {
                         label: 'Load Demand',
                         data: loadData,
                         borderColor: '#2c3e50',
-                        backgroundColor: 'rgba(44, 62, 80, 0.1)',
-                        borderWidth: 3,
+                        backgroundColor: 'rgba(44, 62, 80, 0.15)',
+                        borderWidth: 4,
                         fill: true,
-                        tension: 0.4
+                        tension: 0.4,
+                        pointRadius: 6,
+                        pointHoverRadius: 10,
+                        pointBackgroundColor: '#2c3e50',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: '#2c3e50',
+                        pointHoverBorderWidth: 3
                     },
                     ...generatorDatasets
                 ]
@@ -1479,10 +1763,28 @@ class UnitCommitmentApp {
                 plugins: {
                     title: {
                         display: true,
-                        text: 'Hourly Load Demand vs Generator Output'
+                        text: 'Hourly Load Demand vs Generator Output',
+                        font: { size: 14, weight: 'bold' },
+                        padding: { bottom: 15 }
                     },
                     legend: {
-                        position: 'bottom'
+                        position: 'bottom',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 20
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.85)',
+                        titleFont: { size: 14, weight: 'bold' },
+                        bodyFont: { size: 13 },
+                        padding: 14,
+                        cornerRadius: 10,
+                        mode: 'index',
+                        intersect: false,
+                        animation: {
+                            duration: 200
+                        }
                     }
                 },
                 scales: {
@@ -1491,18 +1793,39 @@ class UnitCommitmentApp {
                         title: {
                             display: true,
                             text: 'Power (MW)'
+                        },
+                        grid: {
+                            color: 'rgba(0,0,0,0.05)'
                         }
                     },
                     x: {
                         title: {
                             display: true,
                             text: 'Hour'
+                        },
+                        grid: {
+                            display: false
                         }
                     }
                 },
                 interaction: {
                     intersect: false,
                     mode: 'index'
+                },
+                animation: {
+                    duration: 2000,
+                    easing: 'easeInOutQuart',
+                    delay: (context) => context.datasetIndex * 300
+                },
+                hover: {
+                    animationDuration: 300
+                },
+                transitions: {
+                    active: {
+                        animation: {
+                            duration: 300
+                        }
+                    }
                 }
             }
         });
@@ -1521,7 +1844,7 @@ class UnitCommitmentApp {
         
         // Create stacked bar chart showing generator status (on/off/power level)
         const generatorDatasets = this.generators.map((gen, index) => {
-            const colors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#34495e', '#e67e22', '#95a5a6', '#f1c40f'];
+            const colors = UnitCommitmentApp.CONFIG.CHART_COLORS;
             const color = colors[index % colors.length];
             
             const statusData = result.schedules.map(period => {
@@ -1551,12 +1874,23 @@ class UnitCommitmentApp {
                 plugins: {
                     title: {
                         display: true,
-                        text: 'Generator On/Off Status Timeline'
+                        text: 'Generator On/Off Status Timeline',
+                        font: { size: 14, weight: 'bold' },
+                        padding: { bottom: 15 }
                     },
                     legend: {
-                        position: 'bottom'
+                        position: 'bottom',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 20
+                        }
                     },
                     tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.85)',
+                        titleFont: { size: 14, weight: 'bold' },
+                        bodyFont: { size: 13 },
+                        padding: 14,
+                        cornerRadius: 10,
                         callbacks: {
                             label: function(context) {
                                 const generatorName = context.dataset.label;
@@ -1585,14 +1919,36 @@ class UnitCommitmentApp {
                             display: true,
                             text: 'Generator Status'
                         },
-                        stacked: true
+                        stacked: true,
+                        grid: {
+                            color: 'rgba(0,0,0,0.05)'
+                        }
                     },
                     x: {
                         title: {
                             display: true,
                             text: 'Hour'
                         },
-                        stacked: true
+                        stacked: true,
+                        grid: { display: false }
+                    }
+                },
+                animation: {
+                    delay: (context) => context.datasetIndex * 200 + context.dataIndex * 50,
+                    duration: 1500,
+                    easing: 'easeOutBounce',
+                    y: {
+                        from: (ctx) => ctx.chart.scales.y.getPixelForValue(0)
+                    }
+                },
+                hover: {
+                    animationDuration: 300
+                },
+                transitions: {
+                    active: {
+                        animation: {
+                            duration: 300
+                        }
                     }
                 }
             }
@@ -1637,12 +1993,28 @@ class UnitCommitmentApp {
         const demand = parseFloat(value);
         const demandInput = document.getElementById('demand-input');
         
-        if (!this.currentProject) return;
+        if (!demandInput) return;
         
-        if (isNaN(demand) || demand < this.currentProject.minLoad || demand > this.currentProject.maxLoad) {
+        if (!this.currentProject) {
+            demandInput.style.borderColor = 'var(--warning-color)';
+            return;
+        }
+        
+        if (isNaN(demand)) {
             demandInput.style.borderColor = 'var(--danger-color)';
+            demandInput.title = 'Please enter a valid number';
+        } else if (demand < 0) {
+            demandInput.style.borderColor = 'var(--danger-color)';
+            demandInput.title = 'Demand cannot be negative';
+        } else if (demand < this.currentProject.minLoad) {
+            demandInput.style.borderColor = 'var(--danger-color)';
+            demandInput.title = `Demand too low. Minimum: ${this.currentProject.minLoad.toFixed(2)} MW`;
+        } else if (demand > this.currentProject.maxLoad) {
+            demandInput.style.borderColor = 'var(--danger-color)';
+            demandInput.title = `Demand too high. Maximum: ${this.currentProject.maxLoad.toFixed(2)} MW`;
         } else {
-            demandInput.style.borderColor = 'var(--border)';
+            demandInput.style.borderColor = 'var(--success-color)';
+            demandInput.title = `Valid demand: ${demand} MW`;
         }
     }
 
@@ -1698,12 +2070,12 @@ class UnitCommitmentApp {
             </div>
         `;
         
-        // Auto-remove after 15 seconds (longer for multiple errors)
+        // Auto-remove after configured duration
         setTimeout(() => {
             if (errorDiv.parentNode) {
                 errorDiv.remove();
             }
-        }, 15000);
+        }, UnitCommitmentApp.CONFIG.ERROR_DISPLAY_DURATION);
     }
 
     clearFieldErrors() {
@@ -1722,7 +2094,8 @@ class UnitCommitmentApp {
 
     setDefaultValues(generatorIndex) {
         // Set intelligent default values based on typical power system parameters
-        const baseCapacity = 50 + (generatorIndex * 25); // Increasing capacity for each generator
+        const { DEFAULT_BASE_CAPACITY, DEFAULT_CAPACITY_INCREMENT, DEFAULT_RAMP_UP_PERCENT, DEFAULT_RAMP_DOWN_PERCENT } = UnitCommitmentApp.CONFIG;
+        const baseCapacity = DEFAULT_BASE_CAPACITY + (generatorIndex * DEFAULT_CAPACITY_INCREMENT);
         
         setTimeout(() => {
             const pgminEl = document.getElementById(`gen_${generatorIndex}_pgmin`);
@@ -1737,14 +2110,14 @@ class UnitCommitmentApp {
             
             if (pgminEl && !pgminEl.value) pgminEl.value = Math.max(10, baseCapacity * 0.2);
             if (pgmaxEl && !pgmaxEl.value) pgmaxEl.value = baseCapacity;
-            if (aiEl && !aiEl.value) aiEl.value = 30 + (generatorIndex * 10); // Higher fixed cost for larger units
-            if (biEl && !biEl.value) biEl.value = (2.0 + generatorIndex * 0.3).toFixed(2); // Increasing variable cost
-            if (diEl && !diEl.value) diEl.value = (0.01 - generatorIndex * 0.001).toFixed(4); // Decreasing quadratic cost
-            if (rampupEl && !rampupEl.value) rampupEl.value = baseCapacity * 0.3; // 30% of capacity per hour
-            if (rampdownEl && !rampdownEl.value) rampdownEl.value = baseCapacity * 0.25; // 25% of capacity per hour
+            if (aiEl && !aiEl.value) aiEl.value = 30 + (generatorIndex * 10);
+            if (biEl && !biEl.value) biEl.value = (2.0 + generatorIndex * 0.3).toFixed(2);
+            if (diEl && !diEl.value) diEl.value = (0.01 - generatorIndex * 0.001).toFixed(4);
+            if (rampupEl && !rampupEl.value) rampupEl.value = Math.round(baseCapacity * DEFAULT_RAMP_UP_PERCENT);
+            if (rampdownEl && !rampdownEl.value) rampdownEl.value = Math.round(baseCapacity * DEFAULT_RAMP_DOWN_PERCENT);
             if (minuptimeEl && !minuptimeEl.value) minuptimeEl.value = Math.max(1, Math.floor(generatorIndex / 2) + 1);
             if (mindowntimeEl && !mindowntimeEl.value) mindowntimeEl.value = 1;
-        }, 50);
+        }, UnitCommitmentApp.CONFIG.TAB_TRANSITION_DELAY);
     }
 
     loadExample() {
@@ -1772,11 +2145,20 @@ class UnitCommitmentApp {
                 document.getElementById(`gen_${i+1}_mindowntime`).value = gen.mindowntime;
             });
             
-            // Save generators and set demand to 100
+            // Save generators and set demand to a valid value within range
             this.saveGenerators();
             setTimeout(() => {
-                document.getElementById('demand-input').value = 100;
-                this.showToast('Example loaded! Demand set to 100 MW. Click Optimization tab.', 'success');
+                // Calculate a sensible default demand (50% of capacity)
+                if (this.currentProject) {
+                    const midpointDemand = Math.round(
+                        (this.currentProject.minLoad + this.currentProject.maxLoad) / 2
+                    );
+                    document.getElementById('demand-input').value = midpointDemand;
+                    this.showToast(`Example loaded! Demand set to ${midpointDemand} MW. Click Optimization tab.`, 'success');
+                } else {
+                    document.getElementById('demand-input').value = 100;
+                    this.showToast('Example loaded! Demand set to 100 MW. Click Optimization tab.', 'success');
+                }
                 this.switchTab('optimization');
             }, 500);
         }, 100);
@@ -1819,19 +2201,29 @@ class UnitCommitmentApp {
                 });
 
                 const generators = [];
+                const parseErrors = [];
+                
                 for (let i = 1; i < lines.length; i++) {
                     const line = lines[i].trim();
                     if (!line) continue;
                     
-                    const values = line.split(',');
-                    const generator = {
-                        tag: values[colIndices.tag].trim(),
-                        pgmin: parseFloat(values[colIndices.pgmin]),
-                        pgmax: parseFloat(values[colIndices.pgmax]),
-                        ai: parseFloat(values[colIndices.ai]),
-                        bi: parseFloat(values[colIndices.bi]),
-                        di: parseFloat(values[colIndices.di])
-                    };
+                    try {
+                        const values = line.split(',');
+                        const generator = {
+                            tag: values[colIndices.tag]?.trim() || `G${i}`,
+                            pgmin: parseFloat(values[colIndices.pgmin]),
+                            pgmax: parseFloat(values[colIndices.pgmax]),
+                            ai: parseFloat(values[colIndices.ai]),
+                            bi: parseFloat(values[colIndices.bi]),
+                            di: parseFloat(values[colIndices.di])
+                        };
+                        
+                        // Validate required numeric fields
+                        if (isNaN(generator.pgmin) || isNaN(generator.pgmax) || 
+                            isNaN(generator.ai) || isNaN(generator.bi) || isNaN(generator.di)) {
+                            parseErrors.push(`Row ${i}: Invalid numeric values`);
+                            continue;
+                        }
                     
                     // Add optional advanced parameters with defaults
                     generator.rampup = colIndices.rampup !== undefined ? 
@@ -1844,6 +2236,18 @@ class UnitCommitmentApp {
                         parseFloat(values[colIndices.mindowntime]) : 1;
                     
                     generators.push(generator);
+                    } catch (rowError) {
+                        parseErrors.push(`Row ${i}: ${rowError.message}`);
+                        continue;
+                    }
+                }
+                
+                if (generators.length === 0) {
+                    throw new Error('No valid generators found in CSV');
+                }
+                
+                if (parseErrors.length > 0) {
+                    console.warn('CSV parse warnings:', parseErrors);
                 }
 
                 // Update form
@@ -1910,7 +2314,10 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
             this.currentProject = null;
             this.optimizationResults = null;
             
-            localStorage.removeItem('uc_optimizer_current_project');
+            // Clean up charts to prevent memory leaks
+            this.destroyAllCharts();
+            
+            localStorage.removeItem(UnitCommitmentApp.CONFIG.STORAGE_KEY_PROJECT);
             this.updateUI();
             this.showToast('All data cleared', 'success');
         }
@@ -1919,18 +2326,24 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
     // Data Management
     saveProject() {
         if (this.currentProject) {
-            localStorage.setItem('uc_optimizer_current_project', JSON.stringify(this.currentProject));
+            try {
+                localStorage.setItem(UnitCommitmentApp.CONFIG.STORAGE_KEY_PROJECT, JSON.stringify(this.currentProject));
+            } catch (error) {
+                console.error('Failed to save project:', error);
+                this.showToast('Failed to save project to local storage', 'error');
+            }
         }
     }
 
     loadSavedProject() {
-        const saved = localStorage.getItem('uc_optimizer_current_project');
+        const saved = localStorage.getItem(UnitCommitmentApp.CONFIG.STORAGE_KEY_PROJECT);
         if (saved) {
             try {
                 this.currentProject = JSON.parse(saved);
-                this.generators = this.currentProject.generators;
+                this.generators = this.currentProject.generators || [];
             } catch (error) {
                 console.error('Failed to load saved project:', error);
+                localStorage.removeItem(UnitCommitmentApp.CONFIG.STORAGE_KEY_PROJECT);
             }
         }
     }
@@ -1968,9 +2381,10 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
                 this.history.unshift({ ...this.currentProject });
             }
             
-            // Keep only last 20 projects
-            if (this.history.length > 20) {
-                this.history = this.history.slice(0, 20);
+            // Keep only last N projects (from config)
+            const maxHistory = UnitCommitmentApp.CONFIG.MAX_HISTORY_ITEMS;
+            if (this.history.length > maxHistory) {
+                this.history = this.history.slice(0, maxHistory);
             }
             
             this.saveHistory();
@@ -1978,12 +2392,21 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
     }
 
     saveHistory() {
-        localStorage.setItem('uc_optimizer_history', JSON.stringify(this.history));
+        try {
+            localStorage.setItem(UnitCommitmentApp.CONFIG.STORAGE_KEY_HISTORY, JSON.stringify(this.history));
+        } catch (error) {
+            console.error('Failed to save history:', error);
+        }
     }
 
     loadHistory() {
-        const saved = localStorage.getItem('uc_optimizer_history');
-        return saved ? JSON.parse(saved) : [];
+        try {
+            const saved = localStorage.getItem(UnitCommitmentApp.CONFIG.STORAGE_KEY_HISTORY);
+            return saved ? JSON.parse(saved) : [];
+        } catch (error) {
+            console.error('Failed to load history:', error);
+            return [];
+        }
     }
 
     exportHistory() {
@@ -2025,6 +2448,11 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
         const container = document.getElementById('flac-chart-container');
         const canvas = document.getElementById('flac-chart');
         
+        if (!container || !canvas) {
+            console.warn('FLAC chart elements not found');
+            return;
+        }
+        
         if (!this.generators || this.generators.length === 0) return;
         
         container.style.display = 'block';
@@ -2036,6 +2464,10 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
         }
         
         const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            console.error('Cannot get canvas context for FLAC chart');
+            return;
+        }
         this.charts.flac = new Chart(ctx, {
             type: 'bar',
             data: {
@@ -2050,7 +2482,12 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
                         `hsla(${200 + i * 30}, 70%, 50%, 1)`
                     ),
                     borderWidth: 2,
-                    borderRadius: 6
+                    borderRadius: 8,
+                    hoverBackgroundColor: this.generators.map((_, i) => 
+                        `hsla(${200 + i * 30}, 85%, 55%, 1)`
+                    ),
+                    hoverBorderWidth: 3,
+                    hoverBorderColor: '#fff'
                 }]
             },
             options: {
@@ -2059,9 +2496,22 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
                     title: {
                         display: true,
                         text: 'Generator Efficiency Ranking (Lower FLAC = Better)',
-                        font: { size: 14, weight: 'bold' }
+                        font: { size: 14, weight: 'bold' },
+                        padding: { bottom: 20 }
                     },
-                    legend: { display: false }
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        titleFont: { size: 14, weight: 'bold' },
+                        bodyFont: { size: 13 },
+                        padding: 12,
+                        cornerRadius: 8,
+                        displayColors: true,
+                        animation: {
+                            duration: 200,
+                            easing: 'easeOutQuart'
+                        }
+                    }
                 },
                 scales: {
                     y: {
@@ -2069,13 +2519,34 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
                         title: {
                             display: true,
                             text: 'FLAC (₹/MW)'
+                        },
+                        grid: {
+                            color: 'rgba(0,0,0,0.05)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
                         }
                     }
                 },
                 animation: {
-                    delay: (context) => context.dataIndex * 200,
-                    duration: 1000,
-                    easing: 'easeOutBounce'
+                    delay: (context) => context.dataIndex * 300,
+                    duration: 1500,
+                    easing: 'easeOutBounce',
+                    y: {
+                        from: (ctx) => ctx.chart.scales.y.getPixelForValue(0)
+                    }
+                },
+                hover: {
+                    animationDuration: 300
+                },
+                transitions: {
+                    active: {
+                        animation: {
+                            duration: 300
+                        }
+                    }
                 }
             }
         });
@@ -2115,6 +2586,10 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
         
         try {
             const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            console.error('Cannot get canvas context for power distribution chart');
+            return;
+        }
         this.charts.powerDistribution = new Chart(ctx, {
             type: 'doughnut',
             data: {
@@ -2125,26 +2600,64 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
                         '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
                         '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'
                     ],
-                    borderWidth: 3,
-                    borderColor: '#fff'
+                    borderWidth: 4,
+                    borderColor: '#fff',
+                    hoverOffset: 20,
+                    hoverBorderWidth: 5,
+                    hoverBorderColor: '#fff',
+                    spacing: 2
                 }]
             },
             options: {
                 responsive: true,
+                cutout: '55%',
                 plugins: {
                     title: {
                         display: true,
                         text: `Power Distribution for ${result.demand} MW Demand`,
-                        font: { size: 14, weight: 'bold' }
+                        font: { size: 14, weight: 'bold' },
+                        padding: { bottom: 15 }
                     },
                     legend: {
-                        position: 'bottom'
+                        position: 'bottom',
+                        labels: {
+                            padding: 20,
+                            usePointStyle: true,
+                            pointStyle: 'circle'
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.85)',
+                        titleFont: { size: 14, weight: 'bold' },
+                        bodyFont: { size: 13 },
+                        padding: 14,
+                        cornerRadius: 10,
+                        callbacks: {
+                            label: (context) => {
+                                const value = context.parsed;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return `${context.label}: ${value} MW (${percentage}%)`;
+                            }
+                        }
                     }
                 },
                 animation: {
                     animateRotate: true,
+                    animateScale: true,
                     duration: 2000,
-                    easing: 'easeInOutQuart'
+                    easing: 'easeOutElastic',
+                    delay: (context) => context.dataIndex * 200
+                },
+                hover: {
+                    animationDuration: 400
+                },
+                transitions: {
+                    active: {
+                        animation: {
+                            duration: 400
+                        }
+                    }
                 }
             }
         });
@@ -2166,6 +2679,15 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
         // Calculate cost components for each generator
         const costData = result.schedule.map(item => {
             const gen = this.generators.find(g => g.tag === item.generator);
+            if (!gen) {
+                return {
+                    generator: item.generator,
+                    fixed: 0,
+                    variable: 0,
+                    quadratic: 0,
+                    total: item.cost
+                };
+            }
             return {
                 generator: item.generator,
                 fixed: gen.ai,
@@ -2176,6 +2698,10 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
         });
         
         const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            console.error('Cannot get canvas context for cost breakdown chart');
+            return;
+        }
         this.charts.costBreakdown = new Chart(ctx, {
             type: 'bar',
             data: {
@@ -2191,12 +2717,18 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
                         label: 'Variable Cost (Bi×Pi)',
                         data: costData.map(item => item.variable),
                         backgroundColor: '#36A2EB',
+                        borderColor: '#2488d8',
+                        borderWidth: 1,
+                        borderRadius: 4,
                         stack: 'Stack 0'
                     },
                     {
                         label: 'Quadratic Cost (Di×Pi²)',
                         data: costData.map(item => item.quadratic),
                         backgroundColor: '#FFCE56',
+                        borderColor: '#e6b94d',
+                        borderWidth: 1,
+                        borderRadius: 4,
                         stack: 'Stack 0'
                     }
                 ]
@@ -2207,23 +2739,60 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
                     title: {
                         display: true,
                         text: 'Cost Component Breakdown',
-                        font: { size: 14, weight: 'bold' }
+                        font: { size: 14, weight: 'bold' },
+                        padding: { bottom: 15 }
+                    },
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 20
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.85)',
+                        titleFont: { size: 14, weight: 'bold' },
+                        bodyFont: { size: 13 },
+                        padding: 14,
+                        cornerRadius: 10,
+                        callbacks: {
+                            label: (context) => `${context.dataset.label}: ₹${context.parsed.y.toFixed(2)}`
+                        }
                     }
                 },
                 scales: {
-                    x: { stacked: true },
+                    x: { 
+                        stacked: true,
+                        grid: { display: false }
+                    },
                     y: { 
                         stacked: true,
                         title: {
                             display: true,
                             text: 'Cost (₹)'
+                        },
+                        grid: {
+                            color: 'rgba(0,0,0,0.05)'
                         }
                     }
                 },
                 animation: {
-                    delay: (context) => context.dataIndex * 300,
+                    delay: (context) => context.datasetIndex * 500 + context.dataIndex * 150,
                     duration: 1500,
-                    easing: 'easeOutElastic'
+                    easing: 'easeOutElastic',
+                    y: {
+                        from: (ctx) => ctx.chart.scales.y.getPixelForValue(0)
+                    }
+                },
+                hover: {
+                    animationDuration: 300
+                },
+                transitions: {
+                    active: {
+                        animation: {
+                            duration: 300
+                        }
+                    }
                 }
             }
         });
@@ -2236,6 +2805,10 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
         if (!this.optimizationResults || !this.optimizationResults.success) return;
         
         const container = document.getElementById('advanced-visualizations');
+        if (!container) {
+            console.warn('Advanced visualizations container not found');
+            return;
+        }
         container.style.display = 'grid';
         container.classList.add('animate-fadeIn');
         
@@ -2254,6 +2827,7 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
 
     createEfficiencyGauge() {
         const canvas = document.getElementById('efficiency-gauge');
+        if (!canvas) return;
         
         // Calculate system utilization (a true percentage metric)
         const analysis = this.analyzeResults(this.optimizationResults);
@@ -2264,27 +2838,39 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
         }
         
         const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        
         this.charts.efficiency = new Chart(ctx, {
             type: 'doughnut',
             data: {
                 datasets: [{
                     data: [utilization, 100 - utilization],
-                    backgroundColor: ['#4CAF50', '#E0E0E0'],
+                    backgroundColor: [
+                        this.createGradient(ctx, '#4CAF50', '#8BC34A'),
+                        '#E8E8E8'
+                    ],
                     borderWidth: 0,
                     circumference: Math.PI,
-                    rotation: Math.PI
+                    rotation: Math.PI,
+                    hoverOffset: 8
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                cutout: '75%',
                 plugins: {
                     legend: { display: false },
                     tooltip: { enabled: false }
                 },
                 animation: {
                     animateRotate: true,
-                    duration: 2000
+                    animateScale: true,
+                    duration: 2500,
+                    easing: 'easeOutElastic'
+                },
+                hover: {
+                    animationDuration: 300
                 }
             },
             plugins: [{
@@ -2322,28 +2908,61 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
     }
 
     startResultAnimation() {
-        // Animate all visible charts
-        Object.values(this.charts).forEach(chart => {
+        // Animate all visible charts with staggered updates
+        Object.values(this.charts).forEach((chart, index) => {
             if (chart && chart.canvas && chart.canvas.offsetParent) {
-                chart.update('active');
+                setTimeout(() => {
+                    chart.reset();
+                    chart.update('active');
+                }, index * 200);
             }
         });
         
-        // Animate result cards
+        // Animate result cards with wave effect
         document.querySelectorAll('.result-card').forEach((card, index) => {
             setTimeout(() => {
                 card.classList.add('animate-pulse');
-            }, index * 200);
+                card.style.transform = 'scale(1.05)';
+                setTimeout(() => {
+                    card.style.transform = 'scale(1)';
+                }, 300);
+            }, index * 150);
         });
         
-        // Animate generator items
+        // Animate generator items with slide effect
         document.querySelectorAll('.generator-item').forEach((item, index) => {
             setTimeout(() => {
-                item.style.transform = 'translateX(10px)';
+                item.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+                item.style.transform = 'translateX(15px) scale(1.02)';
+                item.style.boxShadow = '0 4px 15px rgba(37, 99, 235, 0.2)';
                 setTimeout(() => {
-                    item.style.transform = 'translateX(0)';
-                }, 300);
-            }, index * 100);
+                    item.style.transform = 'translateX(0) scale(1)';
+                    item.style.boxShadow = '';
+                }, 400);
+            }, index * 120);
+        });
+
+        // Animate chart containers
+        document.querySelectorAll('.chart-container').forEach((container, index) => {
+            setTimeout(() => {
+                container.style.transition = 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)';
+                container.style.transform = 'scale(1.02)';
+                container.style.boxShadow = '0 8px 30px rgba(37, 99, 235, 0.15)';
+                setTimeout(() => {
+                    container.style.transform = 'scale(1)';
+                    container.style.boxShadow = '';
+                }, 500);
+            }, index * 250);
+        });
+
+        // Animate progress bars if they exist
+        document.querySelectorAll('.progress-fill').forEach((bar, index) => {
+            const width = bar.style.width;
+            bar.style.width = '0';
+            setTimeout(() => {
+                bar.style.transition = 'width 1.5s cubic-bezier(0.4, 0, 0.2, 1)';
+                bar.style.width = width;
+            }, index * 200 + 300);
         });
     }
 
@@ -2381,6 +3000,7 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
 
     createLoadDistributionChart() {
         const canvas = document.getElementById('load-distribution-chart');
+        if (!canvas) return;
         
         if (this.charts.loadDistribution) {
             this.charts.loadDistribution.destroy();
@@ -2389,7 +3009,10 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
         if (!this.optimizationResults || !this.optimizationResults.success) return;
         
         const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        
         const schedule = this.optimizationResults.schedule;
+        if (!schedule || schedule.length === 0) return;
         
         this.charts.loadDistribution = new Chart(ctx, {
             type: 'line',
@@ -2399,9 +3022,18 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
                     label: 'Power Output (MW)',
                     data: schedule.map(item => item.power),
                     borderColor: '#36A2EB',
-                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.25)',
                     fill: true,
-                    tension: 0.4
+                    tension: 0.4,
+                    pointRadius: 8,
+                    pointHoverRadius: 12,
+                    pointBackgroundColor: '#36A2EB',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 3,
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: '#36A2EB',
+                    pointHoverBorderWidth: 4,
+                    borderWidth: 3
                 }]
             },
             options: {
@@ -2410,7 +3042,16 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
                     title: {
                         display: true,
                         text: 'Generator Load Distribution',
-                        font: { size: 14, weight: 'bold' }
+                        font: { size: 14, weight: 'bold' },
+                        padding: { bottom: 15 }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.85)',
+                        titleFont: { size: 14, weight: 'bold' },
+                        bodyFont: { size: 13 },
+                        padding: 14,
+                        cornerRadius: 10,
+                        displayColors: true
                     }
                 },
                 scales: {
@@ -2419,13 +3060,35 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
                         title: {
                             display: true,
                             text: 'Power (MW)'
+                        },
+                        grid: {
+                            color: 'rgba(0,0,0,0.05)'
                         }
+                    },
+                    x: {
+                        grid: { display: false }
                     }
                 },
                 animation: {
-                    delay: (context) => context.dataIndex * 100,
-                    duration: 1500,
-                    easing: 'easeOutCubic'
+                    delay: (context) => context.dataIndex * 200,
+                    duration: 2000,
+                    easing: 'easeOutElastic',
+                    x: {
+                        from: (ctx) => ctx.chart.scales.x.getPixelForValue(ctx.chart.scales.x.min)
+                    },
+                    y: {
+                        from: (ctx) => ctx.chart.scales.y.getPixelForValue(0)
+                    }
+                },
+                hover: {
+                    animationDuration: 300
+                },
+                transitions: {
+                    active: {
+                        animation: {
+                            duration: 300
+                        }
+                    }
                 }
             }
         });
@@ -2433,6 +3096,7 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
 
     createCostTrendChart() {
         const canvas = document.getElementById('cost-trend-chart');
+        if (!canvas) return;
         
         if (this.charts.costTrend) {
             this.charts.costTrend.destroy();
@@ -2441,7 +3105,10 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
         if (!this.optimizationResults || !this.optimizationResults.success) return;
         
         const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        
         const schedule = this.optimizationResults.schedule;
+        if (!schedule || schedule.length === 0) return;
         
         // Calculate cumulative cost
         let cumulativeCost = 0;
@@ -2458,9 +3125,18 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
                     label: 'Cumulative Cost (₹)',
                     data: costTrendData,
                     borderColor: '#FF6384',
-                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.15)',
                     fill: true,
-                    stepped: true
+                    stepped: true,
+                    borderWidth: 3,
+                    pointRadius: 6,
+                    pointHoverRadius: 10,
+                    pointBackgroundColor: '#FF6384',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: '#FF6384',
+                    pointHoverBorderWidth: 3
                 }]
             },
             options: {
@@ -2469,7 +3145,18 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
                     title: {
                         display: true,
                         text: 'Cumulative Cost Trend',
-                        font: { size: 14, weight: 'bold' }
+                        font: { size: 14, weight: 'bold' },
+                        padding: { bottom: 15 }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.85)',
+                        titleFont: { size: 14, weight: 'bold' },
+                        bodyFont: { size: 13 },
+                        padding: 14,
+                        cornerRadius: 10,
+                        callbacks: {
+                            label: (context) => `Cumulative Cost: ₹${context.parsed.y.toFixed(2)}`
+                        }
                     }
                 },
                 scales: {
@@ -2478,13 +3165,32 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
                         title: {
                             display: true,
                             text: 'Cost (₹)'
+                        },
+                        grid: {
+                            color: 'rgba(0,0,0,0.05)'
                         }
+                    },
+                    x: {
+                        grid: { display: false }
                     }
                 },
                 animation: {
-                    delay: (context) => context.dataIndex * 150,
+                    delay: (context) => context.dataIndex * 250,
                     duration: 2000,
-                    easing: 'easeOutQuart'
+                    easing: 'easeOutQuart',
+                    y: {
+                        from: (ctx) => ctx.chart.scales.y.getPixelForValue(0)
+                    }
+                },
+                hover: {
+                    animationDuration: 300
+                },
+                transitions: {
+                    active: {
+                        animation: {
+                            duration: 300
+                        }
+                    }
                 }
             }
         });
@@ -2492,6 +3198,7 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
 
     createUtilizationChart() {
         const canvas = document.getElementById('utilization-chart');
+        if (!canvas) return;
         
         if (this.charts.utilization) {
             this.charts.utilization.destroy();
@@ -2500,11 +3207,15 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
         if (!this.optimizationResults || !this.optimizationResults.success) return;
         
         const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        
         const schedule = this.optimizationResults.schedule;
+        if (!schedule || schedule.length === 0) return;
         
         // Calculate utilization percentage for each generator
         const utilizationData = schedule.map(item => {
             const gen = this.generators.find(g => g.tag === item.generator);
+            if (!gen || gen.pgmax === 0) return 0;
             return ((item.power / gen.pgmax) * 100).toFixed(1);
         });
         
@@ -2516,12 +3227,16 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
                     label: 'Utilization %',
                     data: utilizationData,
                     borderColor: '#FFCE56',
-                    backgroundColor: 'rgba(255, 206, 86, 0.2)',
-                    borderWidth: 2,
+                    backgroundColor: 'rgba(255, 206, 86, 0.25)',
+                    borderWidth: 3,
                     pointBackgroundColor: '#FFCE56',
                     pointBorderColor: '#fff',
-                    pointBorderWidth: 2,
-                    pointRadius: 6
+                    pointBorderWidth: 3,
+                    pointRadius: 8,
+                    pointHoverRadius: 12,
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: '#FFCE56',
+                    pointHoverBorderWidth: 4
                 }]
             },
             options: {
@@ -2530,7 +3245,18 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
                     title: {
                         display: true,
                         text: 'Generator Utilization Radar',
-                        font: { size: 14, weight: 'bold' }
+                        font: { size: 14, weight: 'bold' },
+                        padding: { bottom: 15 }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.85)',
+                        titleFont: { size: 14, weight: 'bold' },
+                        bodyFont: { size: 13 },
+                        padding: 14,
+                        cornerRadius: 10,
+                        callbacks: {
+                            label: (context) => `Utilization: ${context.parsed.r}%`
+                        }
                     }
                 },
                 scales: {
@@ -2541,13 +3267,37 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
                             stepSize: 25,
                             callback: function(value) {
                                 return value + '%';
-                            }
+                            },
+                            font: { size: 11 },
+                            backdropColor: 'transparent'
+                        },
+                        grid: {
+                            color: 'rgba(0,0,0,0.08)',
+                            circular: true
+                        },
+                        pointLabels: {
+                            font: { size: 12, weight: 'bold' },
+                            color: '#333'
+                        },
+                        angleLines: {
+                            color: 'rgba(0,0,0,0.08)'
                         }
                     }
                 },
                 animation: {
-                    duration: 2000,
-                    easing: 'easeOutElastic'
+                    duration: 2500,
+                    easing: 'easeOutElastic',
+                    delay: (context) => context.dataIndex * 150
+                },
+                hover: {
+                    animationDuration: 300
+                },
+                transitions: {
+                    active: {
+                        animation: {
+                            duration: 300
+                        }
+                    }
                 }
             }
         });
@@ -2646,6 +3396,10 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
 
     showToast(message, type = 'success') {
         const container = document.getElementById('toast-container');
+        if (!container) {
+            console.warn('Toast container not found');
+            return;
+        }
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
         
@@ -2663,8 +3417,97 @@ G3,15,80,60,2.0,0.012,20,18,2,1`;
         container.appendChild(toast);
         
         setTimeout(() => {
-            toast.remove();
-        }, 5000);
+            if (toast.parentNode) {
+                toast.remove();
+            }
+        }, UnitCommitmentApp.CONFIG.TOAST_DURATION);
+    }
+    
+    // Self-test method for validation
+    static runTests() {
+        console.log('=== Unit Commitment Optimizer Self-Test ===');
+        console.log(`Version: ${UnitCommitmentApp.CONFIG.VERSION}`);
+        
+        const testResults = [];
+        
+        // Test 1: Create test generators
+        const testGenerators = [
+            { tag: 'G1', pgmin: 10, pgmax: 100, ai: 50, bi: 2.5, di: 0.01, rampup: 15, rampdown: 12, minuptime: 2, mindowntime: 1 },
+            { tag: 'G2', pgmin: 20, pgmax: 150, ai: 40, bi: 3.0, di: 0.008, rampup: 25, rampdown: 20, minuptime: 3, mindowntime: 2 },
+            { tag: 'G3', pgmin: 15, pgmax: 80, ai: 60, bi: 2.0, di: 0.012, rampup: 20, rampdown: 18, minuptime: 2, mindowntime: 1 }
+        ];
+        
+        // Calculate FLAC for test generators
+        const processedGenerators = testGenerators.map(gen => {
+            const flac = gen.ai / gen.pgmax + gen.bi + gen.di * gen.pgmax;
+            return { ...gen, flac };
+        }).sort((a, b) => a.flac - b.flac);
+        
+        // Test 2: FLAC calculation
+        // G2: 40/150 + 3.0 + 0.008*150 = 0.267 + 3.0 + 1.2 = 4.467
+        // G1: 50/100 + 2.5 + 0.01*100 = 0.5 + 2.5 + 1.0 = 4.0
+        // G3: 60/80 + 2.0 + 0.012*80 = 0.75 + 2.0 + 0.96 = 3.71
+        const expectedOrder = ['G3', 'G1', 'G2']; // Lowest FLAC first
+        const actualOrder = processedGenerators.map(g => g.tag);
+        const flacTest = JSON.stringify(expectedOrder) === JSON.stringify(actualOrder);
+        testResults.push({ name: 'FLAC Sorting', passed: flacTest, expected: expectedOrder, actual: actualOrder });
+        
+        // Test 3: Create mock app for optimization test
+        const mockApp = {
+            generators: processedGenerators,
+            optimizeUnitCommitment: UnitCommitmentApp.prototype.optimizeUnitCommitment
+        };
+        
+        // Bind the CONFIG to the mock
+        Object.defineProperty(mockApp, 'CONFIG', { get: () => UnitCommitmentApp.CONFIG });
+        
+        // Test 4: Optimization with demand = 200 MW
+        const demand = 200;
+        const result = mockApp.optimizeUnitCommitment(processedGenerators, demand, 1, []);
+        const optTest = result.success === true;
+        testResults.push({ 
+            name: 'Optimization Success (200 MW)', 
+            passed: optTest,
+            details: result.success ? `Total Cost: ₹${result.totalCost.toFixed(2)}, Gen: ${result.totalGeneration.toFixed(2)} MW` : result.error
+        });
+        
+        // Test 5: Check total generation matches demand within tolerance
+        if (result.success) {
+            const tolerance = Math.max(demand * 0.005, 1.0);
+            const demandMatch = Math.abs(result.totalGeneration - demand) <= tolerance;
+            testResults.push({ 
+                name: 'Demand Match', 
+                passed: demandMatch,
+                expected: `${demand} ± ${tolerance.toFixed(2)} MW`,
+                actual: `${result.totalGeneration.toFixed(2)} MW`
+            });
+        }
+        
+        // Test 6: Min/Max demand validation
+        const minLoad = Math.min(...processedGenerators.map(g => g.pgmin)); // 10 MW
+        const maxLoad = processedGenerators.reduce((sum, g) => sum + g.pgmax, 0); // 330 MW
+        const rangeTest = minLoad === 10 && maxLoad === 330;
+        testResults.push({ name: 'System Range', passed: rangeTest, expected: '10-330 MW', actual: `${minLoad}-${maxLoad} MW` });
+        
+        // Test 7: Out of range demand (too high)
+        const highDemandResult = mockApp.optimizeUnitCommitment(processedGenerators, 400, 1, []);
+        const highDemandTest = highDemandResult.success === false;
+        testResults.push({ name: 'High Demand Rejection', passed: highDemandTest });
+        
+        // Print results
+        console.log('\n--- Test Results ---');
+        testResults.forEach(test => {
+            const status = test.passed ? '✅ PASS' : '❌ FAIL';
+            console.log(`${status}: ${test.name}`);
+            if (test.expected !== undefined) console.log(`   Expected: ${test.expected}`);
+            if (test.actual !== undefined) console.log(`   Actual: ${test.actual}`);
+            if (test.details) console.log(`   Details: ${test.details}`);
+        });
+        
+        const passCount = testResults.filter(t => t.passed).length;
+        console.log(`\n=== ${passCount}/${testResults.length} tests passed ===`);
+        
+        return testResults;
     }
 }
 

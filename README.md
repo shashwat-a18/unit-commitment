@@ -1,118 +1,165 @@
-# Unit Commitment Optimizer 
+# ⚡ E-Solver
 
-A modern, interactive web application for solving Unit Commitment (UC) optimization problems in power systems. This tool provides a comprehensive solution for generator dispatch optimization with an intuitive interface that works entirely in your browser.
+> **Economic Load Dispatch & Unit Commitment Optimization Tool for Power Systems**
 
-🌐 **[Live Demo on GitHub Pages](https://shashwat-a18.github.io/unit-commitment/)** 
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/shashwat-a18/unit-commitment)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![GitHub Pages](https://img.shields.io/badge/demo-live-brightgreen.svg)](https://shashwat-a18.github.io/unit-commitment)
 
-[![Deploy to GitHub Pages](https://img.shields.io/badge/Deploy%20to-GitHub%20Pages-blue?logo=github)](#github-pages-deployment)
+E-Solver is a modern web application that solves the **Unit Commitment (UC)** and **Economic Load Dispatch (ELD)** problems in power systems. It uses dynamic programming with memoization to find the optimal generator scheduling that minimizes total operating cost while meeting demand constraints.
 
-## 📋 Project Overview
+---
 
-**Unit Commitment Optimizer** is a fully static web application that solves power system unit commitment problems using advanced optimization algorithms. **No server, no build process, no dependencies** - everything runs in your browser with data stored locally, making it perfect for GitHub Pages deployment.
+## ��� About This Project
 
-## 🏗️ Project Structure
+This is a **group research project** developed as part of our college curriculum in **Semester 7 of B.Tech**. 
 
+### Team Contributions
+
+| Role | Contributor |
+|------|-------------|
+| **Coding & Development** | Shashwat ([@shashwat-a18](https://github.com/shashwat-a18)) |
+| **Concept & Implementation** | Shashwat |
+| **Research & Documentation** | Team Members |
+
+> ��� The complete coding and concept implementation was handled by **Shashwat**.
+
+---
+
+## ��� Table of Contents
+
+- [About This Project](#-about-this-project)
+- [Features](#-features)
+- [Demo](#-demo)
+- [Quick Start](#-quick-start)
+- [Algorithm](#-algorithm)
+- [Usage Guide](#-usage-guide)
+- [API Reference](#-api-reference)
+- [Testing](#-testing)
+- [Project Structure](#-project-structure)
+- [Contributing](#-contributing)
+- [License](#-license)
+
+---
+
+## ✨ Features
+
+### Core Functionality
+- **FLAC-based Merit Order** - Ranks generators by Full Load Average Cost for optimal dispatch
+- **Dynamic Programming Optimization** - Efficient algorithm with memoization for large-scale problems
+- **Multi-Period Scheduling** - Supports 24-hour scheduling with ramp rate constraints
+- **Constraint Handling** - Minimum/maximum power limits, ramp-up/down rates, min uptime/downtime
+
+### Visualizations
+- ��� **Bar Charts** - Generator FLAC rankings and cost breakdowns
+- ��� **Line Charts** - Load demand vs generation, cost trends
+- ��� **Doughnut Charts** - Power distribution and efficiency gauges
+- ��� **Radar Charts** - Generator utilization analysis
+- ��� **Smooth Animations** - 29 CSS keyframes, elastic/bounce effects
+
+### User Experience
+- ��� **Modern UI** - Clean, responsive design with 70+ transitions
+- ��� **Data Persistence** - Save/load projects with localStorage
+- ��� **CSV Import/Export** - Bulk import generator data
+- ��� **Mobile Friendly** - Works on all device sizes
+
+---
+
+## ��� Demo
+
+**Live Demo:** [https://shashwat-a18.github.io/unit-commitment](https://shashwat-a18.github.io/unit-commitment)
+
+### Quick Example
 ```
-unit-commitment/
-├── index.html           # 🎯 Main application interface with enhanced UI
-├── app.js              # 🧠 Core optimization algorithms with multi-period support
-├── styles.css          # 🎨 Modern responsive styling with timeline visualizations
-├── _config.yml         # ⚙️  GitHub Pages configuration
-├── .gitignore          # 🔒 Git ignore rules
-├── README.md           # 📖 Complete documentation
-├── verify-deployment.sh # 🔧 Deployment verification script
-└── CNAME.example       # 🌐 Custom domain template
+Generator G1: 10-100 MW, Cost = 50 + 2.5P + 0.01P²
+Generator G2: 20-150 MW, Cost = 40 + 3.0P + 0.008P²
+Generator G3: 15-80 MW,  Cost = 60 + 2.0P + 0.012P²
+
+Demand: 150 MW
+
+Result: G3 (80 MW) + G1 (70 MW) = ₹625.80
 ```
 
-## ✨ Key Features
+---
 
-### 🎯 **Generator Management**
-- **Interactive Forms**: Dynamic generator parameter input
-- **CSV Import/Export**: Import existing data or download templates
-- **Real-time Validation**: Instant feedback on data input
-- **Example Data**: Load sample generators to get started quickly
-- **FLAC Calculation**: Automatic Full Load Average Cost computation
+## ��� Quick Start
 
-### 🔄 **Unit Commitment Optimization** 
-- **Dynamic Programming Algorithm**: Efficient recursive optimization
-- **Multiple Generator Support**: Handle up to 10 generators simultaneously
-- **Multi-Period Planning**: Optimize generator schedules across 1-168 hours
-- **Constraint Handling**: Automatic feasibility checking with min up/down times
-- **Load Pattern Support**: Constant, daily, industrial, and residential patterns
-- **Real-time Results**: Instant optimization with visual feedback
-- **Cost Analysis**: Detailed breakdown of generation costs across time periods
+### Option 1: GitHub Pages (No Installation)
+Visit the [live demo](https://shashwat-a18.github.io/unit-commitment) directly.
 
-### 📊 **Results & Analysis**
-- **Optimal Dispatch Schedule**: Generator-wise power allocation across time periods
-- **Generator Timeline**: Visual on/off schedule for multi-hour planning
-- **Cost Breakdown**: Fixed, variable, and quadratic cost components
-- **Performance Metrics**: Efficiency, utilization, and feasibility analysis
-- **Interactive Charts**: Load vs generation, generator status timelines
-- **Visual Tables**: Clean, organized result presentation with status indicators
-- **Export Capabilities**: Save results for further analysis
+### Option 2: Local Development
+```bash
+# Clone the repository
+git clone https://github.com/shashwat-a18/unit-commitment.git
+cd unit-commitment
 
-### 💾 **Data Management**
-- **Local Storage**: All data saved in your browser
-- **Project History**: Automatic saving of generator configurations
-- **Import/Export**: JSON-based data exchange
-- **Offline Capable**: Works without internet connection
+# Start a local server
+python -m http.server 8080
 
-## � Technical Implementation
+# Open in browser
+# http://localhost:8080
+```
 
-### **Algorithm Details**
-- **Dynamic Programming**: Recursive memoized optimization for optimal substructure
-- **Cost Function**: Quadratic generation cost: `Cost = Ai + Bi×Pi + Di×Pi²`
-- **FLAC Sorting**: Generators prioritized by Full Load Average Cost
-- **Constraint Handling**: Automatic Pgmin/Pgmax validation
-- **Feasibility Checking**: System capacity vs. demand verification
+### Option 3: Direct File
+Simply open `index.html` in any modern web browser.
 
-### **Generator Parameters**
-- **Tag**: Generator identifier (G1, G2, etc.)
-- **Pgmin**: Minimum power output (MW)
-- **Pgmax**: Maximum power output (MW) 
-- **Ai**: Fixed cost coefficient (₹)
-- **Bi**: Linear cost coefficient (₹/MW)
-- **Di**: Quadratic cost coefficient (₹/MW²)
-- **FLAC**: Calculated as `Ai/Pgmax + Bi + Di×Pgmax`
+---
 
-### **Web Technologies**
-- **Pure JavaScript**: No frameworks, maximum performance
-- **Modern CSS**: Grid, Flexbox, CSS Variables
-- **Web APIs**: File API, localStorage, Blob API
-- **Responsive Design**: Mobile-first approach
+## ��� Algorithm
 
-## 🚀 Quick Start
+### Cost Function
+The operating cost of a generator is modeled as a quadratic function:
 
-### **Option 1: GitHub Pages (Recommended)**
-1. Visit the [live application](https://shashwat-a18.github.io/unit-commitment/)
-2. Start using immediately - no installation required!
+**C(P) = Aᵢ + Bᵢ × P + Dᵢ × P²**
 
-> **Deploy Your Own Copy**: See the [GitHub Pages Deployment](#github-pages-deployment) section below for step-by-step instructions to host your own instance.
+Where:
+- **Aᵢ** = Fixed cost (₹) - fuel startup, maintenance
+- **Bᵢ** = Linear cost coefficient (₹/MW)
+- **Dᵢ** = Quadratic cost coefficient (₹/MW²)
+- **P** = Power output (MW)
 
-### **Option 2: Local Usage**
-1. **Download/Clone** this repository
-2. **Open** `index.html` in any modern web browser
-3. **Start optimizing** - no server or installation needed!
+### Full Load Average Cost (FLAC)
+Generators are ranked by FLAC for merit order dispatch:
 
-### **First Steps**
-1. **Load Example Data**: Click "Load Example" to see sample generators
-2. **Create Generators**: Use the "Create Generator Forms" to input your data
-3. **Save & Calculate**: Save generators to compute FLAC rankings  
-4. **Optimize**: Switch to "Optimization" tab and enter demand
-5. **View Results**: Check detailed analysis in "Results" tab
+**FLAC = Aᵢ/Pₘₐₓ + Bᵢ + Dᵢ × Pₘₐₓ**
 
-### **GitHub Pages Deployment (Ready to Deploy!)**
-1. **Fork or Upload** this repository to GitHub
-2. **Go to Settings → Pages** in your repository
-3. **Select source: Deploy from branch `master`** 
-4. **Wait 2-5 minutes** for deployment
-5. **Access at: `https://shashwat-a18.github.io/unit-commitment/`**
+Lower FLAC = Higher priority for dispatch.
 
-**✅ This project is 100% ready for GitHub Pages - no additional setup required!**
+### Optimization Algorithm
+```
+1. Sort generators by FLAC (ascending)
+2. Use dynamic programming to find optimal power levels
+3. Apply constraints:
+   - Pgmin ≤ P ≤ Pgmax
+   - Ramp-up/down limits (multi-period)
+   - Minimum up/down time
+4. Return minimum cost schedule
+```
 
-## 📊 Data Format & Examples
+---
 
-### **CSV Import Format**
+## ��� Usage Guide
+
+### 1. Define Generators
+
+| Parameter | Description | Unit |
+|-----------|-------------|------|
+| `Tag` | Generator identifier | - |
+| `Pgmin` | Minimum power output | MW |
+| `Pgmax` | Maximum power output | MW |
+| `Ai` | Fixed cost coefficient | ₹ |
+| `Bi` | Linear cost coefficient | ₹/MW |
+| `Di` | Quadratic cost coefficient | ₹/MW² |
+| `Ramp Up` | Maximum ramp-up rate | MW/hr |
+| `Ramp Down` | Maximum ramp-down rate | MW/hr |
+
+### 2. Run Optimization
+1. Enter generator parameters
+2. Specify demand (MW)
+3. Click "Optimize"
+4. View results and charts
+
+### 3. CSV Import Format
 ```csv
 Tag,Pgmin,Pgmax,Ai,Bi,Di
 G1,10,100,50,2.5,0.01
@@ -120,168 +167,108 @@ G2,20,150,40,3.0,0.008
 G3,15,80,60,2.0,0.012
 ```
 
-### **Example Problem**
-- **Generator 1**: 10-100 MW, FLAC = 3.01
-- **Generator 2**: 20-150 MW, FLAC = 2.467 (most economical)
-- **Generator 3**: 15-80 MW, FLAC = 2.96
-- **System Range**: 45-330 MW total capacity
-- **Sample Demand**: 200 MW → Optimal cost: ₹493.33
+---
 
-### **Optimization Results Example**
-| Generator | Power (MW) | Cost (₹) | Share (%) |
-|-----------|------------|----------|-----------|
-| G2        | 150.0      | 300.00   | 75%       |
-| G1        | 50.0       | 193.33   | 25%       |
-| **Total** | **200.0**  | **493.33** | **100%**  |
+## ��� API Reference
 
-## 🎯 Use Cases
+### UnitCommitmentApp Class
 
-### **📚 Academic & Research**
-- **Course Projects**: Power Systems, Optimization, Operations Research
-- **Research Studies**: Algorithm comparison and validation
-- **Thesis Work**: Unit commitment problem analysis
-- **Teaching Aid**: Interactive demonstration tool
+```javascript
+// Initialize the application
+const app = new UnitCommitmentApp();
 
-### **🏢 Professional Applications**  
-- **System Planning**: Generator dispatch analysis
-- **Economic Studies**: Cost optimization scenarios
-- **Training**: Power system operator education
-- **Consulting**: Quick feasibility studies
+// Configuration available at
+UnitCommitmentApp.CONFIG = {
+    DEMAND_TOLERANCE_PERCENT: 0.005,  // 0.5% tolerance
+    DEMAND_TOLERANCE_MIN_MW: 1.0,     // Minimum 1 MW
+    POWER_STEP_SIZE: 1.0,             // 1 MW resolution
+    MAX_GENERATORS: 10,               // Maximum generators
+    ANIMATION_DURATION: 1500,         // Chart animations (ms)
+};
+```
 
-### **💡 Learning & Development**
-- **Algorithm Understanding**: See optimization in action
-- **Parameter Sensitivity**: Test different cost coefficients
-- **Constraint Analysis**: Understand feasibility limits
-- **Benchmarking**: Compare different generator sets
+---
 
-## � Advanced Features
+## ��� Testing
 
-### **🔄 Real-time Processing**
-- ✅ Instant optimization results
-- ✅ Dynamic constraint validation  
-- ✅ Live cost calculations
-- ✅ Responsive UI updates
+### Run Test Suite
+```bash
+node test.js
+```
 
-### **💾 Data Persistence**
-- ✅ Browser localStorage integration
-- ✅ Automatic project saving
-- ✅ History management
-- ✅ Import/Export capabilities
+### Test Results (15/15 Passing)
+| Test | Expected | Status |
+|------|----------|--------|
+| FLAC Order | G3 < G1 < G2 | ✅ |
+| System Range | 10-330 MW | ✅ |
+| 50 MW Optimization | G3 at 50 MW = ₹220 | ✅ |
+| 150 MW Optimization | G3+G1 = ₹625.80 | ✅ |
+| 250 MW Optimization | G3+G1+G2 = ₹1,059 | ✅ |
+| 330 MW Max Capacity | All generators | ✅ |
+| Over Capacity (400 MW) | Rejected | ✅ |
+| Zero Demand | Handled | ✅ |
 
-### **� Modern Interface**
-- ✅ Mobile-responsive design
-- ✅ Touch-friendly controls  
-- ✅ Intuitive navigation
-- ✅ Professional appearance
+---
 
-### **🔧 Developer Friendly**
-- ✅ Clean, documented code
-- ✅ Modular architecture
-- ✅ Easy customization
-- ✅ No dependencies
+## ��� Project Structure
 
-## 🌟 Why Choose This Optimizer?
+```
+e-solver/
+├── index.html          # Main HTML file (285 lines)
+├── app.js              # Core application logic (3,500+ lines)
+│   ├── UnitCommitmentApp class
+│   ├── CONFIG constants
+│   ├── Optimization algorithms
+│   ├── Chart creation methods
+│   └── Event handlers
+├── styles.css          # CSS with animations (1,800+ lines)
+│   ├── 29 @keyframes animations
+│   ├── 17 CSS variables
+│   └── Responsive breakpoints
+├── test.js             # Comprehensive test suite
+├── _config.yml         # GitHub Pages config
+└── README.md           # Documentation
+```
 
-### **⚡ Performance**
-- **Client-side Processing**: No server delays
-- **Efficient Algorithms**: Optimized dynamic programming  
-- **Memory Management**: Smart memoization
-- **Fast Results**: Sub-second optimization
+---
 
-### **🔒 Privacy & Security**
-- **Local Storage**: Your data never leaves your device
-- **No Registration**: Use immediately without accounts
-- **Offline Capable**: Works without internet
-- **No Tracking**: Complete privacy
+## ���️ Tech Stack
 
-### **📈 Reliability**
-- **No Downtime**: Static hosting means 99.9% uptime
-- **Browser Compatible**: Works on all modern browsers
-- **Mobile Ready**: Fully responsive design
-- **Future-proof**: Standards-compliant code
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| JavaScript | ES6+ | Core logic |
+| Chart.js | 4.4.0 | Visualizations |
+| Font Awesome | 6.4.0 | Icons |
+| Google Fonts | Inter | Typography |
+| GitHub Pages | - | Hosting |
 
-## 🤝 Contributing
+---
 
-Contributions are welcome! This project aims to be a comprehensive educational tool for power systems optimization.
+## ��� Contributing
 
-### **How to Contribute**
 1. Fork the repository
-2. Create your feature branch
-3. Make improvements
-4. Submit a pull request
-
-### **Areas for Enhancement**
-- Additional optimization algorithms
-- Enhanced visualizations  
-- More constraint types
-- Performance optimizations
-- UI/UX improvements
-
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
-
-## 🙏 Acknowledgments
-
-- Developed for power systems education and research
-- Inspired by classical unit commitment formulations
-- Built with modern web standards for accessibility
-
-## 🚀 Deployment
-
-### **GitHub Pages Ready**
-This project is **100% ready** for GitHub Pages hosting with **zero configuration needed**.
-
-### **Quick Deploy Steps**
-1. **Create new repository** on GitHub
-2. **Upload all files** (drag & drop works!)
-3. **Go to Settings → Pages**
-4. **Select "Deploy from branch main"**
-5. **Wait 2-5 minutes** ⏱️
-6. **Visit your live app!** 🎉
-
-### **Browser Compatibility**
-- Chrome 60+ ✅
-- Firefox 55+ ✅
-- Safari 12+ ✅
-- Edge 79+ ✅
-
-All modern browsers with ES6+ support work perfectly.
+2. Create a feature branch (`git checkout -b feature/amazing`)
+3. Commit changes (`git commit -m 'Add feature'`)
+4. Push to branch (`git push origin feature/amazing`)
+5. Open a Pull Request
 
 ---
 
-## 🚀 GitHub Pages Deployment
+## ��� License
 
-This application is **100% static** and ready for immediate GitHub Pages deployment with zero configuration!
-
-### Quick Deploy (5 minutes)
-```bash
-# 1. Create and push to GitHub repository
-git init
-git add .
-git commit -m "Initial commit: Unit Commitment Optimizer"
-git remote add origin https://github.com/shashwat-a18/unit-commitment.git
-git push -u origin main
-
-# 2. Enable GitHub Pages
-# Go to repository Settings → Pages → Source: "Deploy from a branch" → main branch
-```
-
-### Your app will be live at:
-`https://shashwat-a18.github.io/unit-commitment/`
-
-### ✅ Why it works perfectly on GitHub Pages:
-- Pure HTML/CSS/JavaScript (no server required)
-- All dependencies loaded from CDN
-- No build process needed
-- Optimized for static hosting
-
-### 🔧 Verification
-Run the included verification script to check deployment readiness:
-```bash
-bash verify-deployment.sh
-```
+This project is licensed under the MIT License.
 
 ---
 
-**🚀 [Try the Live Demo](https://shashwat-a18.github.io/unit-commitment/) - No installation required!**
+## ���‍��� Developer
+
+**Shashwat** - [@shashwat-a18](https://github.com/shashwat-a18)
+
+*Complete coding and concept implementation by Shashwat as part of B.Tech Semester 7 Research Project.*
+
+---
+
+<p align="center">
+  <strong>��� B.Tech Semester 7 Research Project</strong><br>
+  Made with ⚡ by E-Solver Team
+</p>

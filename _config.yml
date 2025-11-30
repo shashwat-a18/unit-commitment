@@ -1,15 +1,23 @@
-# GitHub Pages Configuration for Unit Commitment Optimizer
+# GitHub Pages Configuration for E-Solver
+# Version: 2.0.0
 
 # Site settings
-title: "Unit Commitment Optimizer"
-description: "Modern web application for power system optimization with advanced constraints and animated visualizations"
-baseurl: "/unit-commitment"
-url: "https://shashwat-a18.github.io"
+title: "E-Solver"
+description: "Advanced Economic Load Dispatch & Unit Commitment Optimization Tool for Power Systems with interactive visualizations"
+
+# IMPORTANT: Update baseurl to match your repository name
+# If repo is username.github.io, use baseurl: ""
+# If repo is username.github.io/repo-name, use baseurl: "/repo-name"
+baseurl: ""
+url: ""
+
+# Theme (optional - comment out if not using Jekyll themes)
+# theme: minima
 
 # Exclude files from processing  
 exclude:
   - legacy/
-  - "*.md"
+  - README.md
   - .gitignore
   - node_modules/
   - vendor/
@@ -18,3 +26,11 @@ exclude:
   - gemfiles/
   - Gemfile
   - Gemfile.lock
+  - "*.sh"
+  - CNAME.example
+
+# Include specific files
+include:
+  - index.html
+  - app.js
+  - styles.css

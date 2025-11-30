@@ -3,12 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Unit Commitment Optimizer</title>
+    <meta name="description" content="E-Solver - Advanced Economic Load Dispatch & Unit Commitment Optimization Tool for Power Systems">
+    <meta name="keywords" content="E-Solver, unit commitment, economic dispatch, power system optimization, generator scheduling, FLAC, load dispatch">
+    <meta name="author" content="E-Solver Team">
+    <title>E-Solver | Power System Optimization</title>
     <link rel="stylesheet" href="styles.css">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" crossorigin="anonymous">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <div id="app">
@@ -17,8 +19,9 @@
             <div class="header-content">
                 <div class="logo">
                     <i class="fas fa-bolt"></i>
-                    <h1>Unit Commitment Optimizer</h1>
-                    <span class="subtitle">Unit Commitment Optimizer</span>
+                    <h1>E-Solver</h1>
+                    <span class="subtitle">Economic Load Dispatch & Unit Commitment</span>
+                    <span class="version-badge">v2.0.0</span>
                 </div>
                 <nav class="nav-menu">
                     <button class="nav-btn active" data-tab="generator">
