@@ -3,282 +3,169 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="E-Solver - Advanced Economic Load Dispatch & Unit Commitment Optimization Tool for Power Systems">
-    <meta name="keywords" content="E-Solver, unit commitment, economic dispatch, power system optimization, generator scheduling, FLAC, load dispatch">
-    <meta name="author" content="E-Solver Team">
-    <title>E-Solver | Power System Optimization</title>
-    <link rel="stylesheet" href="styles.css">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+    <title>Unit Commitment Optimizer</title>
+    <link rel="stylesheet" href="optimizer-styles.css">
 </head>
 <body>
-    <div id="app">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-content">
-                <div class="logo">
-                    <i class="fas fa-bolt"></i>
-                    <h1>E-Solver</h1>
-                    <span class="subtitle">Economic Load Dispatch & Unit Commitment</span>
-                </div>
-                <nav class="nav-menu">
-                    <button class="nav-btn active" data-tab="generator">
-                        <i class="fas fa-cog"></i>
-                        <span>Generators</span>
-                    </button>
-                    <button class="nav-btn" data-tab="optimization">
-                        <i class="fas fa-chart-line"></i>
-                        <span>Optimization</span>
-                    </button>
-                    <button class="nav-btn" data-tab="results">
-                        <i class="fas fa-table"></i>
-                        <span>Results</span>
-                    </button>
-                    <button class="nav-btn" data-tab="history">
-                        <i class="fas fa-history"></i>
-                        <span>History</span>
-                    </button>
-                </nav>
-            </div>
+    <div class="container">
+        <header>
+            <h1>⚡ Unit Commitment Optimization System</h1>
+            <p class="subtitle">Advanced Power Generation Scheduling</p>
         </header>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Generator Management Tab -->
-            <section id="generator-tab" class="tab-content active">
-                <div class="tab-header">
-                    <h2><i class="fas fa-cog"></i> Generator Management</h2>
-                    <p>Create and manage generator configurations for optimization</p>
-                </div>
-
-                <div class="content-grid">
-                    <!-- Project Info Card -->
-                    <div class="card project-card">
-                        <h3><i class="fas fa-project-diagram"></i> Project Setup</h3>
-                        <div class="form-group">
-                            <label for="question-number">Question Number:</label>
-                            <input type="number" id="question-number" min="1" value="1" class="form-input">
-                        </div>
-                        <div class="form-group">
-                            <label for="num-generators">Number of Generators:</label>
-                            <input type="number" id="num-generators" min="1" max="10" value="3" class="form-input">
-                        </div>
-                        <button class="btn btn-primary" id="create-generators-btn">
-                            <i class="fas fa-plus"></i> Create Generator Forms
-                        </button>
-                    </div>
-
-                    <!-- Quick Actions Card -->
-                    <div class="card actions-card">
-                        <h3><i class="fas fa-tools"></i> Quick Actions</h3>
-                        <div class="actions-grid">
-                            <button class="btn btn-secondary" id="load-example-btn">
-                                <i class="fas fa-file-import"></i>
-                                Load Example
-                            </button>
-                            <button class="btn btn-secondary" id="import-csv-btn">
-                                <i class="fas fa-upload"></i>
-                                Import CSV
-                            </button>
-                            <button class="btn btn-secondary" id="download-template-btn">
-                                <i class="fas fa-download"></i>
-                                CSV Template
-                            </button>
-                            <button class="btn btn-secondary" id="clear-all-btn">
-                                <i class="fas fa-trash"></i>
-                                Clear All
-                            </button>
-                        </div>
-                        <input type="file" id="csv-file-input" accept=".csv" style="display: none;">
-                    </div>
-                </div>
-
-                <!-- Generator Forms Container -->
-                <div id="generator-forms-container"></div>
-
-                <!-- Save Section -->
-                <div class="save-section" id="save-section" style="display: none;">
-                    <button class="btn btn-success btn-large" id="save-generators-btn">
-                        <i class="fas fa-save"></i> Save Generators & Calculate FLAC
-                    </button>
-                </div>
-            </section>
-
-            <!-- Optimization Tab -->
-            <section id="optimization-tab" class="tab-content">
-                <div class="tab-header">
-                    <h2><i class="fas fa-chart-line"></i> Unit Commitment Optimization</h2>
-                    <p>Find optimal generator dispatch for given demand</p>
-                </div>
-
-                <div class="content-grid">
-                    <!-- Generator Summary Card -->
-                    <div class="card generator-summary-card">
-                        <h3><i class="fas fa-info-circle"></i> Generator Summary</h3>
-                        <div id="generator-summary">
-                            <p class="no-data">No generators loaded. Please create generators first.</p>
-                        </div>
-                        
-                        <!-- FLAC Visualization Chart -->
-                        <div class="chart-container" id="flac-chart-container" style="display: none;">
-                            <h4><i class="fas fa-chart-bar"></i> FLAC Comparison</h4>
-                            <canvas id="flac-chart" width="400" height="200"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Optimization Input Card -->
-                    <div class="card optimization-input-card">
-                        <h3><i class="fas fa-bolt"></i> Demand Input</h3>
-                        <div class="form-group">
-                            <label for="demand-input">Power Demand (MW):</label>
-                            <input type="number" id="demand-input" step="0.1" min="0" class="form-input">
-                            <div class="demand-range" id="demand-range"></div>
-                        </div>
-                        <button class="btn btn-primary btn-large" id="optimize-btn" disabled>
-                            <i class="fas fa-calculator"></i> Optimize Dispatch
-                        </button>
-                    </div>
-
-                    <!-- Multi-Period Optimization -->
-                    <div class="card">
-                        <h3><i class="fas fa-clock"></i> Multi-Period Optimization</h3>
-                        <div class="form-group">
-                            <label for="periods-input">Number of Periods (Hours):</label>
-                            <input type="number" id="periods-input" min="1" max="168" value="24" class="form-input">
-                            <small>Typical: 24 hours (1 day), 72 hours (3 days), 168 hours (1 week)</small>
-                        </div>
-                        <div class="form-group">
-                            <label for="demand-pattern">Demand Pattern:</label>
-                            <select id="demand-pattern" class="form-input">
-                                <option value="constant">Constant Demand</option>
-                                <option value="daily">Daily Load Pattern</option>
-                                <option value="custom">Custom Pattern</option>
-                            </select>
-                        </div>
-                        <div id="custom-demand-input" class="form-group" style="display: none;">
-                            <label for="demand-values">Demand Values (MW, comma-separated):</label>
-                            <textarea id="demand-values" class="form-input" rows="3" placeholder="100, 120, 140, 160, 180, 200, 190, 170..."></textarea>
-                        </div>
-                        <button class="btn btn-secondary btn-large" id="multiperiod-optimize-btn" disabled>
-                            <i class="fas fa-history"></i> Optimize Multi-Period Schedule
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Optimization Results -->
-                <div id="optimization-results" class="results-section"></div>
+        <!-- Step 1: Generator Parameters -->
+        <div id="step1" class="step-section">
+            <div class="card">
+                <h2>Step 1: Configure Generation Units</h2>
+                <p>Enter the parameters for your power generation units</p>
                 
-                <!-- Multi-Period Results -->
-                <div id="multiperiod-results" class="results-section" style="display: none;">
-                    <div class="card">
-                        <h3><i class="fas fa-calendar-alt"></i> Generator Schedule</h3>
-                        <div id="schedule-visualization"></div>
-                    </div>
-                    <div class="card">
-                        <h3><i class="fas fa-chart-area"></i> Load vs Generation</h3>
-                        <canvas id="load-generation-chart" width="800" height="400"></canvas>
-                    </div>
-                    <div class="card">
-                        <h3><i class="fas fa-cogs"></i> Generator Status Timeline</h3>
-                        <canvas id="generator-status-chart" width="800" height="300"></canvas>
-                    </div>
+                <div id="unitsContainer">
+                    <!-- Units will be dynamically added here -->
                 </div>
-                
-                <!-- Live Optimization Visualization -->
-                <div id="optimization-visualization" class="visualization-section" style="display: none;">
-                    <div class="card">
-                        <h3><i class="fas fa-chart-pie"></i> Power Distribution</h3>
-                        <canvas id="power-distribution-chart" width="400" height="300"></canvas>
-                    </div>
-                    <div class="card">
-                        <h3><i class="fas fa-chart-line"></i> Cost Analysis</h3>
-                        <canvas id="cost-breakdown-chart" width="400" height="300"></canvas>
-                    </div>
-                </div>
-            </section>
+                <button id="addUnitBtn" class="btn btn-secondary">+ Add Unit</button>
+            </div>
 
-            <!-- Results Tab -->
-            <section id="results-tab" class="tab-content">
-                <div class="tab-header">
-                    <h2><i class="fas fa-table"></i> Detailed Results</h2>
-                    <p>View comprehensive optimization results and analysis</p>
-                </div>
-
-                <!-- Interactive Results Dashboard -->
-                <div class="results-dashboard">
-                    <div class="dashboard-controls">
-                        <button class="btn btn-secondary" id="animate-results-btn" disabled>
-                            <i class="fas fa-play"></i> Animate Results
-                        </button>
-                        <button class="btn btn-secondary" id="compare-scenarios-btn" disabled>
-                            <i class="fas fa-balance-scale"></i> Compare Scenarios
-                        </button>
-                        <button class="btn btn-secondary" id="export-charts-btn" disabled>
-                            <i class="fas fa-image"></i> Export Charts
-                        </button>
-                    </div>
-                </div>
-                
-                <div id="detailed-results-container">
-                    <p class="no-data">Run optimization to see detailed results here.</p>
-                </div>
-                
-                <!-- Advanced Visualizations -->
-                <div id="advanced-visualizations" class="visualization-grid" style="display: none;">
-                    <div class="card">
-                        <h3><i class="fas fa-tachometer-alt"></i> Efficiency Meter</h3>
-                        <div class="efficiency-meter" id="efficiency-meter">
-                            <canvas id="efficiency-gauge" width="250" height="250"></canvas>
-                        </div>
-                    </div>
-                    <div class="card">
-                        <h3><i class="fas fa-chart-area"></i> Load Distribution</h3>
-                        <canvas id="load-distribution-chart" width="400" height="250"></canvas>
-                    </div>
-                    <div class="card">
-                        <h3><i class="fas fa-money-bill-wave"></i> Cost Trends</h3>
-                        <canvas id="cost-trend-chart" width="400" height="250"></canvas>
-                    </div>
-                    <div class="card">
-                        <h3><i class="fas fa-bolt"></i> Generator Utilization</h3>
-                        <canvas id="utilization-chart" width="400" height="250"></canvas>
-                    </div>
-                </div>
-            </section>
-
-            <!-- History Tab -->
-            <section id="history-tab" class="tab-content">
-                <div class="tab-header">
-                    <h2><i class="fas fa-history"></i> Project History</h2>
-                    <p>View and manage saved generator configurations</p>
-                </div>
-
-                <div class="history-actions">
-                    <button class="btn btn-secondary" id="export-history-btn">
-                        <i class="fas fa-download"></i> Export All Data
-                    </button>
-                    <button class="btn btn-danger" id="clear-history-btn">
-                        <i class="fas fa-trash"></i> Clear History
-                    </button>
-                </div>
-
-                <div id="history-container">
-                    <p class="no-data">No project history found.</p>
-                </div>
-            </section>
-        </main>
-
-        <!-- Loading Overlay -->
-        <div id="loading-overlay" class="loading-overlay">
-            <div class="spinner"></div>
-            <p class="loading-message">Processing optimization...</p>
+            <div class="action-section">
+                <button id="saveUnitsBtn" class="btn btn-success">💾 Save & Continue</button>
+                <button id="loadExampleBtn" class="btn btn-secondary">📝 Load Example</button>
+            </div>
         </div>
 
-        <!-- Toast Notifications -->
-        <div id="toast-container" class="toast-container"></div>
+        <!-- Step 2: Optimizer Type Selection -->
+        <div id="step2" class="step-section" style="display: none;">
+            <div class="card">
+                <h2>Step 2: Select Optimization Type</h2>
+                <p>Choose the type of optimization you want to perform</p>
+                
+                <div class="optimizer-selection">
+                    <div class="button-group">
+                        <button id="singlePeriodBtn" class="btn btn-primary active">Single Period</button>
+                        <button id="multiPeriodBtn" class="btn btn-primary">Multi-Period</button>
+                    </div>
+                </div>
+
+                <div class="info-box" style="margin-top: 20px;">
+                    <div id="singlePeriodInfo" style="display: block;">
+                        <h4>📊 Single Period Optimization</h4>
+                        <p>Optimizes generation for ONE time period. Best for:</p>
+                        <ul>
+                            <li>Economic dispatch decisions</li>
+                            <li>Snapshot optimization at a specific time</li>
+                            <li>Merit order analysis</li>
+                        </ul>
+                    </div>
+                    <div id="multiPeriodInfo" style="display: none;">
+                        <h4>📈 Multi-Period Optimization</h4>
+                        <p>Optimizes across MULTIPLE time periods. Best for:</p>
+                        <ul>
+                            <li>Day-ahead scheduling</li>
+                            <li>Load following with startup/shutdown costs</li>
+                            <li>Optimal unit commitment over time</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="action-section">
+                <button id="backToStep1" class="btn btn-secondary">← Back</button>
+                <button id="proceedToStep3" class="btn btn-success">Continue →</button>
+            </div>
+        </div>
+
+        <!-- Step 3: Demand Input -->
+        <div id="step3" class="step-section" style="display: none;">
+            <div class="card">
+                <h2>Step 3: Enter Power Demand</h2>
+                <p id="demandInstructions">Enter the required power demand</p>
+                
+                <div class="form-group">
+                    <label for="demandInput" id="demandLabel">Demand Values (MW):</label>
+                    <input type="text" id="demandInput" placeholder="e.g., 250">
+                    <small class="hint" id="demandHint">Enter a single demand value in MW</small>
+                </div>
+            </div>
+
+            <div class="action-section">
+                <button id="backToStep2" class="btn btn-secondary">← Back</button>
+                <button id="optimizeBtn" class="btn btn-success">🚀 Optimize</button>
+            </div>
+        </div>
+
+        <!-- Step 4: Results -->
+
+        <!-- Step 4: Results -->
+        <div id="step4" class="step-section" style="display: none;">
+            <div class="action-section" style="margin-bottom: 20px;">
+                <button id="backToStep3" class="btn btn-secondary">← Modify Inputs</button>
+                <button id="startOver" class="btn btn-secondary">🔄 Start Over</button>
+            </div>
+
+            <!-- Single Period Results Section -->
+            <div id="singlePeriodResults" class="results-section" style="display: none;">
+                <h2 style="color: #667eea; text-align: center; margin-bottom: 30px;">
+                    ⚡ Single Period Optimization Results
+                </h2>
+            
+            <div class="card">
+                <h3>📊 Solution Summary</h3>
+                <div id="singleSummary"></div>
+            </div>
+
+            <div class="card">
+                <h3>🎯 Unit Commitment Decision</h3>
+                <div id="singleSchedule"></div>
+            </div>
+
+            <div class="card">
+                <h3>💰 Cost Analysis</h3>
+                <div id="singleCost"></div>
+            </div>
+            
+            <div class="card">
+                <h3>📈 Economic Dispatch</h3>
+                <div id="singleDispatch"></div>
+            </div>
+        </div>
+
+        <!-- Multi-Period Results Section -->
+        <div id="multiPeriodResults" class="results-section" style="display: none;">
+            <h2 style="color: #764ba2; text-align: center; margin-bottom: 30px;">
+                📈 Multi-Period Optimization Results
+            </h2>
+            
+            <div class="card">
+                <h3>📊 Solution Summary</h3>
+                <div id="multiSummary"></div>
+            </div>
+
+            <div class="card">
+                <h3>🕐 Unit Commitment Schedule Over Time</h3>
+                <div id="multiSchedule"></div>
+            </div>
+
+            <div class="card">
+                <h3>💰 Cost Analysis</h3>
+                <div id="multiCost"></div>
+            </div>
+            
+            <div class="card">
+                <h3>⚙️ Operational Statistics</h3>
+                <div id="multiStats"></div>
+            </div>
+            
+            <div class="card">
+                <h3>📉 Load Following Analysis</h3>
+                <div id="multiLoadFollow"></div>
+            </div>
+        </div>
+        </div>
+
+        <footer>
+            <p>Built with JavaScript • Ready for GitHub Pages • © 2025</p>
+        </footer>
     </div>
 
-    <script src="app.js"></script>
+    <script src="unit-commitment.js"></script>
+    <script src="optimizer-app.js"></script>
 </body>
 </html>
